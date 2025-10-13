@@ -49,10 +49,8 @@ const RoadMap = () => {
 
       // Set timeout for loading
       loadTimeoutRef.current = setTimeout(() => {
-        if (!mapLoaded) {
-          console.error('⏱️ Map loading timeout');
-          setError('TIMEOUT');
-        }
+        console.error('⏱️ Map loading timeout');
+        setError('TIMEOUT');
       }, LOAD_TIMEOUT);
 
       // Success handler
