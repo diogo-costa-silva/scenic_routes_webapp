@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mapbox CSS required for proper rendering */
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
+/* Base styles */
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 p-0 font-sans antialiased;
+  }
+
+  #root {
+    @apply w-full h-screen overflow-hidden;
+  }
+}
+
+/* Component styles */
+@layer components {
+  /* Map container must have explicit height */
+  .map-container {
+    @apply w-full h-full;
+  }
+}
