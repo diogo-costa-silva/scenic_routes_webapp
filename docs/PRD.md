@@ -106,7 +106,7 @@ Para focar na área onde vou viajar
 | **Vite**            | 5+     | Build tool & dev server   |
 | **Mapbox GL JS**    | 3+     | Mapas interativos         |
 | **React-Mapbox-GL** | 5+     | Wrapper React para Mapbox |
-| **Tailwind CSS**    | 3+     | Styling responsivo        |
+| **Tailwind CSS**    | **4+** | Styling responsivo (CSS-first config, Rust engine) |
 | **Axios**           | 1+     | HTTP requests             |
 | **React Router**    | 6+     | Routing (se necessário)   |
 
