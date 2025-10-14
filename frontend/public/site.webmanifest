@@ -1,0 +1,15 @@
+{
+  "name": "Road Explorer Portugal",
+  "short_name": "Road Explorer PT",
+  "description": "Discover the best motorcycle roads in Portugal",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#FF6B35",
+  "background_color": "#FFFFFF",
+  "display": "standalone"
+}
