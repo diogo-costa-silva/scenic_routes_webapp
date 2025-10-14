@@ -138,7 +138,23 @@ cp .env.example .env
 # Edit .env with your Supabase and Mapbox credentials
 ```
 
-### 6. Process Road Data
+### 6. Test Database Connection
+
+Before processing roads, verify your Supabase setup is working:
+
+```bash
+# With virtual environment activated in scripts/ directory
+python test_connection.py
+```
+
+This will test:
+- ✅ Environment variables configuration
+- ✅ Supabase connection
+- ✅ PostGIS extension
+- ✅ Roads table access
+- ✅ Geometry functions
+
+### 7. Process Road Data
 
 ```bash
 # With virtual environment activated
@@ -224,6 +240,43 @@ npm run preview      # Preview production build
 npm run lint         # Run ESLint
 ```
 
+### Testing Supabase Connection
+
+#### Frontend Connection Test
+
+Once the development server is running (`npm run dev`), open the browser console and run:
+
+```javascript
+// Full connection test with detailed output
+await window.testSupabaseConnection()
+
+// Quick connection check
+await window.quickConnectionCheck()
+```
+
+This will test:
+- ✅ Environment variables loaded correctly
+- ✅ Supabase client initialized
+- ✅ Database connection working
+- ✅ WKT to GeoJSON conversion
+- ✅ Region filtering
+
+#### Backend Connection Test
+
+From the `scripts/` directory with virtual environment activated:
+
+```bash
+python test_connection.py
+```
+
+This comprehensive test verifies:
+- Environment variables configuration
+- Supabase connection
+- PostGIS extension enabled
+- Roads table exists and is accessible
+- Geometry format (WKT LINESTRING)
+- Region filtering works
+
 ### Code Style
 
 - All code, comments, and documentation in **English**
@@ -231,6 +284,43 @@ npm run lint         # Run ESLint
 - Use functional components with hooks
 - Tailwind CSS for all styling
 - Descriptive variable and function names
+
+### Troubleshooting
+
+#### Supabase Connection Issues
+
+**Error: "Failed to fetch" or "Network error"**
+- Check `.env` file has correct credentials
+- Verify Supabase URL format: `https://xxx.supabase.co`
+- Ensure anon key is from Settings → API in Supabase dashboard
+
+**Error: "relation 'roads' does not exist"**
+- Run `scripts/schema.sql` in Supabase SQL Editor
+- Verify you're connected to the correct Supabase project
+
+**No data returned (empty array)**
+- Database is working but empty
+- Run `scripts/test_data.sql` to add sample roads
+- Or process roads using Python scripts
+
+**Geometry not displaying**
+- Check geometry format is WKT LINESTRING
+- Verify WKT to GeoJSON conversion in browser console
+- Test with: `wktToGeoJSON("LINESTRING(-7.7880 41.1640, -7.7850 41.1650)")`
+
+#### Python Connection Issues
+
+**ModuleNotFoundError**
+- Activate virtual environment: `source .venv/bin/activate`
+- Install dependencies: `uv pip install -r requirements.txt`
+
+**Supabase authentication error**
+- Use SERVICE ROLE key (not anon key) in `scripts/.env`
+- Get from Supabase → Settings → API → service_role key
+
+**UV command not found**
+- Install UV: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Restart terminal or: `source ~/.bashrc`
 
 ## 🚢 Deployment
 
