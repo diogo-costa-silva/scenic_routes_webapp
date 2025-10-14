@@ -14,12 +14,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export { wktToGeoJSON, geojsonToWKT };
 
 /**
- * Fetch all roads with basic information
+ * Fetch all roads with basic information (optimized for list view)
+ * Only fetches necessary fields to reduce payload size
  */
 export const fetchRoads = async () => {
   const { data, error } = await supabase
     .from('roads')
-    .select('*')
+    .select('id, code, name, region, distance_km, curve_count_total, elevation_max, geometry')
     .order('region', { ascending: true })
     .order('code', { ascending: true });
 
@@ -50,12 +51,13 @@ export const fetchRoadById = async (roadId) => {
 };
 
 /**
- * Fetch roads filtered by region
+ * Fetch roads filtered by region (optimized for list view)
+ * Only fetches necessary fields to reduce payload size
  */
 export const fetchRoadsByRegion = async (region) => {
   const { data, error } = await supabase
     .from('roads')
-    .select('*')
+    .select('id, code, name, region, distance_km, curve_count_total, elevation_max, geometry')
     .eq('region', region)
     .order('code', { ascending: true });
 
