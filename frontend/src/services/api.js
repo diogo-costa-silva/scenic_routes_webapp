@@ -20,7 +20,7 @@ export { wktToGeoJSON, geojsonToWKT };
 export const fetchRoads = async () => {
   const { data, error } = await supabase
     .from('roads')
-    .select('id, code, name, region, distance_km, curve_count_total, elevation_max, geometry')
+    .select('id, code, name, region, distance_km, curve_count_total, elevation_max, geometry, start_lat, start_lon, start_point_name, end_lat, end_lon, end_point_name')
     .order('region', { ascending: true })
     .order('code', { ascending: true });
 
@@ -57,7 +57,7 @@ export const fetchRoadById = async (roadId) => {
 export const fetchRoadsByRegion = async (region) => {
   const { data, error } = await supabase
     .from('roads')
-    .select('id, code, name, region, distance_km, curve_count_total, elevation_max, geometry')
+    .select('id, code, name, region, distance_km, curve_count_total, elevation_max, geometry, start_lat, start_lon, start_point_name, end_lat, end_lon, end_point_name')
     .eq('region', region)
     .order('code', { ascending: true });
 
