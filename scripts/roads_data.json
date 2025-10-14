@@ -1,0 +1,35 @@
+[
+  {
+    "code": "N222",
+    "name": "Peso da Régua → Pinhão",
+    "region": "Continental",
+    "osm_ref": "N 222",
+    "description": "One of the most beautiful roads in Europe, winding through the Douro Valley with stunning vineyard views",
+    "start_point_name": "Peso da Régua",
+    "end_point_name": "Pinhão",
+    "surface": "asphalt",
+    "category": "River Valley"
+  },
+  {
+    "code": "N2",
+    "name": "Chaves → Faro",
+    "region": "Continental",
+    "osm_ref": "N 2",
+    "description": "Portugal's legendary Route 66 - 739km from North to South",
+    "start_point_name": "Chaves",
+    "end_point_name": "Faro",
+    "surface": "asphalt",
+    "category": "Long Distance"
+  },
+  {
+    "code": "N339",
+    "name": "Covilhã → Torre",
+    "region": "Continental",
+    "osm_ref": "N 339",
+    "description": "Climb to Portugal's highest point at 1993m altitude in Serra da Estrela",
+    "start_point_name": "Covilhã",
+    "end_point_name": "Torre",
+    "surface": "asphalt",
+    "category": "Mountain"
+  }
+]
