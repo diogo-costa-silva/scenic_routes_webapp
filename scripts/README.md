@@ -372,4 +372,152 @@ Before running scripts, ensure:
 
 ---
 
+## 🏔️ Handling Long Roads
+
+### N2 (Portugal's Route 66) - Special Case
+
+**N2 is 739km long** and requires special handling:
+
+#### Automatic Segmentation
+- Overpass API times out on single query for very long roads
+- Solution: Automatic 4-segment fetch (implemented in `osm_utils.py`)
+- Each segment processed separately, then merged intelligently
+
+#### Expected Behavior
+```
+📡 Fetching road data for: N 2
+   ⚠️  Timeout occurred - road may be very long (>100km)
+   🔄 Falling back to segmentation strategy...
+   🔄 Using segmentation strategy (4 segments)...
+   📍 Processing segment 1/4...
+      ✅ Found 580 points in segment 1
+   📍 Processing segment 2/4...
+      ✅ Found 590 points in segment 2
+   [...]
+   🔗 Merging 4 segments...
+   ✅ Segmentation complete: 2321 total points
+```
+
+#### Processing Time
+- **N2**: ~5-7 minutes total
+  - OSM fetch (4 segments): ~3-4 minutes
+  - Elevation calculation: ~2-3 minutes
+- **Normal roads (<100km)**: 30-90 seconds
+
+---
+
+## 💾 Cache System
+
+### Purpose
+- **Avoid re-fetching** OSM data for roads that rarely change
+- **Respect API rate limits** during development/testing
+- **Speed up processing**: Cache hit = instant (10ms vs 30s)
+
+### Location
+```
+scripts/cache/
+├── .gitignore          # All cache files ignored by git
+├── N_2.json           # N2: 2,321 GPS points
+├── N_222.json         # N222: cached coordinates
+└── N_339.json         # N339: cached coordinates
+```
+
+### Cache Expiry
+- **Default**: 30 days
+- After 30 days, data is automatically re-fetched from OSM
+- Manual invalidation: `rm cache/ROAD_NAME.json`
+
+### Cache Format (JSON)
+```json
+[
+  [-7.924515, 40.6417689],
+  [-7.924234, 40.6418123],
+  ...
+]
+```
+
+### Manual Cache Management
+```bash
+# Clear all cache
+rm cache/*.json
+
+# Clear specific road
+rm cache/N_222.json
+
+# View cache
+cat cache/N_2.json | head -n 5
+```
+
+---
+
+## 🌍 OSM Query Strategy
+
+### Multi-Tier Fallback
+1. **Check cache** (instant if available)
+2. **Query OSM** (works for most roads)
+3. **Automatic segmentation** (fallback for timeouts)
+
+### Bbox Filtering
+- Portugal bbox: `(37.0, -9.5, 42.2, -6.2)` (south, west, north, east)
+- Filters international roads with same reference
+- Example: "N 2" exists in multiple countries, bbox selects Portugal's instance
+
+### Relation vs Ways
+- **Major roads** (N2, N222): Stored as OSM relations ✅
+- **Minor roads**: May be individual ways
+- Query tries both, prefers relations
+
+---
+
+## 📊 Performance Notes
+
+### API Usage
+**OpenStreetMap Overpass**:
+- Free, unlimited (with rate limiting)
+- 1-second delay between requests (respectful)
+- Cache avoids repeated queries
+
+**Mapbox Tilequery**:
+- Free tier: 100,000 requests/month
+- Sampling: Every 10th point (10x reduction)
+- Typical road: 100-300 API calls
+
+### Processing Estimates
+| Road Length | GPS Points | OSM Time | Elevation Time | Total |
+|------------|-----------|----------|---------------|-------|
+| 20-50km | ~1,000 | 10-30s | 5-10s | ~30-60s |
+| 50-200km | ~3,000 | 30-60s | 15-30s | ~1-3min |
+| 700km+ | ~2,300 | 3-4min | 2-3min | ~5-7min |
+
+---
+
+## 🔍 Troubleshooting
+
+### "Rate limited by Overpass API"
+**Cause**: Too many queries in short time
+**Solution**:
+- Wait 5-10 minutes
+- Use cached data (won't hit API)
+- Increase `RATE_LIMIT_DELAY` in `osm_utils.py`
+
+### "No coordinates found for road"
+**Possible causes**:
+1. Wrong OSM reference format
+   - Try: "N 222", "EN 222", "N222"
+2. Road not in OpenStreetMap database
+3. Bbox doesn't include road location
+
+**Debug**:
+```python
+from osm_utils import get_road_from_osm
+coords = get_road_from_osm("N 222")  # Try variations
+```
+
+### "Timeout occurred"
+**Expected for long roads** (>100km)
+- Automatic segmentation will trigger
+- Not an error, just slower processing
+
+---
+
 **Ready to process roads? Run:** `python process_roads.py`
