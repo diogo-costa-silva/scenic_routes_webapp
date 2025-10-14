@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import mapboxgl from 'mapbox-gl';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -8,7 +9,11 @@ const LOAD_TIMEOUT = 10000; // 10 seconds
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
-const RoadMap = () => {
+const RoadMap = ({
+  initialCenter = PORTUGAL_CENTER,
+  initialZoom = INITIAL_ZOOM,
+  className = ''
+}) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const loadTimeoutRef = useRef(null);
@@ -33,15 +38,16 @@ const RoadMap = () => {
     }
 
     console.log('🗺️ Initializing Mapbox map...');
-    console.log('📍 Center:', PORTUGAL_CENTER);
+    console.log('📍 Center:', initialCenter);
+    console.log('🔍 Zoom:', initialZoom);
     console.log('🔑 Token present:', MAPBOX_TOKEN ? 'Yes (hidden)' : 'No');
 
     try {
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/outdoors-v12',
-        center: PORTUGAL_CENTER,
-        zoom: INITIAL_ZOOM,
+        center: initialCenter,
+        zoom: initialZoom,
       });
 
       // Add navigation controls (zoom buttons)
@@ -99,6 +105,7 @@ const RoadMap = () => {
         map.current.remove();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRetry = () => {
@@ -178,7 +185,7 @@ const RoadMap = () => {
   const errorInfo = error ? getErrorMessage() : null;
 
   return (
-    <div className="relative w-full h-full">
+    <div className={`relative w-full h-full ${className}`}>
       <div ref={mapContainer} className="map-container" />
 
       {!mapLoaded && !error && (
@@ -225,6 +232,12 @@ const RoadMap = () => {
       )}
     </div>
   );
+};
+
+RoadMap.propTypes = {
+  initialCenter: PropTypes.arrayOf(PropTypes.number),
+  initialZoom: PropTypes.number,
+  className: PropTypes.string,
 };
 
 export default RoadMap;
