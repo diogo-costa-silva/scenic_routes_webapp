@@ -31,14 +31,50 @@ Flow:
 import os
 import json
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional, Callable, Any
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# Import our modules (placeholder implementations for now)
+# Import our modules
 from osm_utils import get_road_from_osm
 from metrics import calculate_all_metrics
 from elevation import calculate_elevation_for_coordinates
+
+
+# ==============================================================================
+# Retry Logic Configuration
+# ==============================================================================
+
+MAX_RETRIES = 3
+RETRY_DELAY_BASE = 2  # seconds (exponential backoff: 2s, 4s, 8s)
+
+
+def retry_with_backoff(func: Callable, *args, **kwargs) -> Any:
+    """
+    Retry a function with exponential backoff.
+
+    Args:
+        func: Function to retry
+        *args, **kwargs: Arguments to pass to function
+
+    Returns:
+        Result of function call
+
+    Raises:
+        Last exception if all retries fail
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                # Last attempt failed
+                raise
+
+            delay = RETRY_DELAY_BASE * (2 ** attempt)
+            print(f"   ⚠️  Attempt {attempt + 1} failed: {e}")
+            print(f"   🔄 Retrying in {delay}s...")
+            time.sleep(delay)
 
 
 # Load environment variables
@@ -113,13 +149,35 @@ def load_roads_data() -> List[Dict]:
 # Road Processing
 # ==============================================================================
 
-def process_single_road(road_info: Dict, supabase: Client) -> bool:
+def check_road_exists(supabase: Client, code: str) -> Optional[int]:
+    """
+    Check if a road already exists in the database.
+
+    Args:
+        supabase: Supabase client
+        code: Road code to check
+
+    Returns:
+        Road ID if exists, None otherwise
+    """
+    try:
+        result = supabase.table('roads').select('id').eq('code', code).execute()
+        if result.data:
+            return result.data[0]['id']
+        return None
+    except Exception as e:
+        print(f"   ⚠️  Warning: Could not check for existing road: {e}")
+        return None
+
+
+def process_single_road(road_info: Dict, supabase: Client, skip_existing: bool = True) -> bool:
     """
     Process a single road: fetch data, calculate metrics, insert to database.
 
     Args:
         road_info (Dict): Road definition dictionary
         supabase (Client): Supabase client
+        skip_existing (bool): Skip if road already exists (default: True)
 
     Returns:
         bool: True if successful, False otherwise
@@ -132,10 +190,17 @@ def process_single_road(road_info: Dict, supabase: Client) -> bool:
     print("=" * 70)
 
     try:
-        # Step 1: Fetch OSM data
+        # Step 0: Check if road already exists
+        if skip_existing:
+            existing_id = check_road_exists(supabase, code)
+            if existing_id:
+                print(f"⏭️  Road {code} already exists (ID: {existing_id}), skipping...")
+                return True
+
+        # Step 1: Fetch OSM data with retry
         print("\n📡 Step 1: Fetching geometry from OpenStreetMap...")
         osm_ref = road_info.get('osm_ref', code)
-        coordinates = get_road_from_osm(osm_ref)
+        coordinates = retry_with_backoff(get_road_from_osm, osm_ref)
 
         if not coordinates or len(coordinates) < 2:
             print(f"❌ Error: No coordinates found for {code}")
@@ -145,31 +210,61 @@ def process_single_road(road_info: Dict, supabase: Client) -> bool:
 
         # Step 2: Calculate metrics
         print("\n📊 Step 2: Calculating metrics...")
-        metrics = calculate_all_metrics(coordinates)
-        print(f"✅ Distance: {metrics.get('distance_km', 0)} km")
-        print(f"✅ Curves: {metrics.get('curve_count_total', 0)}")
+        try:
+            metrics = calculate_all_metrics(coordinates)
+            print(f"✅ Distance: {metrics.get('distance_km', 0)} km")
+            print(f"✅ Curves: {metrics.get('curve_count_total', 0)}")
+        except Exception as e:
+            print(f"❌ Error calculating metrics: {e}")
+            return False
 
-        # Step 3: Calculate elevation
+        # Step 3: Calculate elevation with retry
         print("\n🏔️  Step 3: Calculating elevation (this may take a while)...")
-        elevation_metrics = calculate_elevation_for_coordinates(coordinates)
-        print(f"✅ Elevation: {elevation_metrics.get('elevation_min', 0)}m "
-              f"→ {elevation_metrics.get('elevation_max', 0)}m")
+        try:
+            elevation_metrics = retry_with_backoff(
+                calculate_elevation_for_coordinates,
+                coordinates
+            )
+            print(f"✅ Elevation: {elevation_metrics.get('elevation_min', 0)}m "
+                  f"→ {elevation_metrics.get('elevation_max', 0)}m")
+        except Exception as e:
+            print(f"⚠️  Warning: Elevation calculation failed: {e}")
+            print(f"   Continuing without elevation data...")
+            elevation_metrics = {
+                'elevation_max': 0,
+                'elevation_min': 0,
+                'elevation_gain': 0,
+                'elevation_loss': 0
+            }
 
         # Step 4: Prepare data for database
         print("\n💾 Step 4: Preparing database entry...")
         road_data = prepare_road_data(road_info, coordinates, metrics, elevation_metrics)
 
-        # Step 5: Insert into Supabase
+        # Step 5: Insert into Supabase with retry
         print("\n📥 Step 5: Inserting into database...")
-        result = supabase.table('roads').insert(road_data).execute()
+        try:
+            result = retry_with_backoff(
+                lambda: supabase.table('roads').insert(road_data).execute()
+            )
 
-        road_id = result.data[0]['id'] if result.data else None
-        print(f"✅ Successfully inserted {code} (ID: {road_id})")
+            road_id = result.data[0]['id'] if result.data else None
+            print(f"✅ Successfully inserted {code} (ID: {road_id})")
 
-        return True
+            return True
+        except Exception as e:
+            print(f"❌ Database insertion failed after {MAX_RETRIES} attempts: {e}")
+            return False
 
+    except KeyboardInterrupt:
+        print(f"\n\n⚠️  Processing interrupted by user for {code}")
+        print(f"   You can resume processing by running the script again")
+        print(f"   (Already processed roads will be skipped)")
+        raise
     except Exception as e:
         print(f"❌ Error processing {code}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
@@ -236,9 +331,6 @@ def main():
     print("=" * 70)
     print("🚀 Road Explorer Portugal - Data Processing")
     print("=" * 70)
-    print("\n🚧 PLACEHOLDER MODE")
-    print("   This script will process roads and populate the database")
-    print("   Currently showing workflow structure only\n")
 
     try:
         # Initialize
@@ -250,16 +342,45 @@ def main():
         # Process each road
         success_count = 0
         fail_count = 0
+        skipped_count = 0
+
+        start_time = time.time()
 
         for i, road_info in enumerate(roads_data, 1):
             print(f"\n\n{'='*70}")
             print(f"Road {i}/{len(roads_data)}")
             print(f"{'='*70}")
 
-            if process_single_road(road_info, supabase):
-                success_count += 1
-            else:
+            road_start_time = time.time()
+
+            try:
+                result = process_single_road(road_info, supabase, skip_existing=True)
+
+                # Check if it was skipped or processed
+                code = road_info.get('code', 'UNKNOWN')
+                existing_id = check_road_exists(supabase, code)
+
+                if result:
+                    # Check if it existed before this run
+                    if existing_id and i == 1:
+                        skipped_count += 1
+                    else:
+                        success_count += 1
+                else:
+                    fail_count += 1
+
+            except KeyboardInterrupt:
+                print("\n\n⚠️  Processing interrupted by user!")
+                print(f"   Processed: {success_count}")
+                print(f"   Failed: {fail_count}")
+                print(f"   Remaining: {len(roads_data) - i}")
+                break
+            except Exception as e:
+                print(f"❌ Unexpected error: {e}")
                 fail_count += 1
+
+            road_time = time.time() - road_start_time
+            print(f"\n⏱️  Road processed in {road_time:.1f}s")
 
             # Small delay between roads to be respectful to APIs
             if i < len(roads_data):
