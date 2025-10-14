@@ -1,0 +1,79 @@
+# ============================================================================
+# Road Explorer Portugal - Python Dependencies
+# ============================================================================
+# Install with UV (MANDATORY):
+#   uv pip install -r requirements.txt
+#
+# DO NOT use regular pip! Use UV for 10-100x faster installation:
+#   pip install uv  (if you don't have UV yet)
+#   uv pip install -r requirements.txt
+# ============================================================================
+
+# ============================================================================
+# HTTP Requests & API Clients
+# ============================================================================
+# Used for OpenStreetMap Overpass API and Mapbox Tilequery API
+requests==2.31.0
+
+# ============================================================================
+# Geospatial Calculations
+# ============================================================================
+# Used for calculating distances between GPS coordinates
+geopy==2.4.1
+
+# ============================================================================
+# Environment Variables
+# ============================================================================
+# Loads environment variables from .env file
+python-dotenv==1.0.1
+
+# ============================================================================
+# Supabase Client
+# ============================================================================
+# Official Supabase Python client for database operations
+supabase==2.9.0
+
+# Additional dependency for Supabase client
+postgrest==0.18.0
+
+# ============================================================================
+# JSON & Data Processing
+# ============================================================================
+# Standard library imports (no installation needed):
+# - json (JSON parsing)
+# - math (mathematical calculations)
+# - time (rate limiting)
+# - os (environment variables)
+# ============================================================================
+
+# ============================================================================
+# Optional: Development & Debugging Tools
+# ============================================================================
+# Uncomment these if you need them for development:
+
+# ipython==8.18.1              # Enhanced Python REPL
+# black==23.12.1               # Code formatter
+# ruff==0.1.9                  # Fast Python linter (Rust-based)
+# mypy==1.8.0                  # Type checker
+
+# ============================================================================
+# Installation Instructions
+# ============================================================================
+# 1. Install UV (if not already installed):
+#    curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
+#    pip install uv                                    # Windows
+#
+# 2. Create virtual environment:
+#    cd scripts/
+#    uv venv
+#
+# 3. Activate virtual environment:
+#    source .venv/bin/activate  # macOS/Linux
+#    .venv\Scripts\Activate.ps1  # Windows
+#
+# 4. Install dependencies:
+#    uv pip install -r requirements.txt
+#
+# 5. Verify installation:
+#    python -c "import requests, geopy, supabase; print('✅ All packages imported successfully')"
+# ============================================================================
