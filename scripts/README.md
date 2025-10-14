@@ -149,13 +149,54 @@ scripts/
 
 ## 🛠️ Usage
 
-### Process Roads
+### Test Database Connection
+
+**IMPORTANT:** Always test your connection first!
 
 ```bash
 # Make sure virtual environment is activated
 source .venv/bin/activate
 
-# Run main processing script
+# Run connection test
+python test_connection.py
+```
+
+This comprehensive test verifies:
+- ✅ Environment variables configured
+- ✅ Supabase connection works
+- ✅ PostGIS extension enabled
+- ✅ Roads table accessible
+- ✅ Geometry functions work (ST_AsText, ST_GeomFromText)
+- ✅ Region filtering works
+
+**Expected Output:**
+```
+==================================================================
+  🧪 Road Explorer Portugal - Database Connection Test
+==================================================================
+
+==================================================================
+  1. Testing Environment Variables
+==================================================================
+✅ SUPABASE_URL configured
+✅ SUPABASE_KEY configured
+✅ MAPBOX_TOKEN configured
+
+==================================================================
+  2. Testing Supabase Connection
+==================================================================
+✅ Supabase client created
+
+[... more tests ...]
+
+📊 Tests passed: 7/7
+🎉 All tests passed! Your Supabase setup is working correctly.
+```
+
+### Process Roads
+
+```bash
+# After connection test passes
 python process_roads.py
 ```
 
