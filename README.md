@@ -32,6 +32,7 @@ An interactive web application showcasing the best motorcycle roads in Portugal 
 ### Prerequisites
 
 - Node.js 18+ and npm
+- Python 3.11+ and **UV** (for data processing scripts)
 - Mapbox account (free tier)
 - Supabase account (free tier)
 
@@ -72,6 +73,80 @@ An interactive web application showcasing the best motorcycle roads in Portugal 
 
    The application will be available at `http://localhost:5173`
 
+## 🗄️ Database Setup
+
+### 1. Install UV (Python Package Manager)
+
+**UV is REQUIRED** for Python data processing scripts.
+
+**macOS / Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Verify installation:**
+```bash
+uv --version
+```
+
+### 2. Create Supabase Project
+
+1. Go to [supabase.com](https://app.supabase.com/) and create a new project
+2. Wait for database initialization (~2 minutes)
+3. Note your project URL and keys from **Settings → API**
+
+### 3. Run Database Schema
+
+1. Open **Supabase SQL Editor**
+2. Copy the contents of `scripts/schema.sql`
+3. Paste and click **Run**
+4. Verify the `roads` table was created in **Table Editor**
+
+### 4. (Optional) Load Test Data
+
+To test with sample roads:
+
+1. In Supabase SQL Editor, create a new query
+2. Copy contents of `scripts/test_data.sql`
+3. Paste and click **Run**
+4. Verify: Run `SELECT * FROM roads` - should show 3 sample roads
+
+### 5. Setup Python Environment
+
+```bash
+# Navigate to scripts directory
+cd scripts/
+
+# Create virtual environment with UV
+uv venv
+
+# Activate environment
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\Activate.ps1  # Windows
+
+# Install dependencies (FAST with UV!)
+uv pip install -r requirements.txt
+
+# Configure credentials
+cp .env.example .env
+# Edit .env with your Supabase and Mapbox credentials
+```
+
+### 6. Process Road Data
+
+```bash
+# With virtual environment activated
+python process_roads.py
+```
+
+**Note:** Python scripts are currently **placeholder implementations**. See [scripts/README.md](scripts/README.md) for full setup guide.
+
 ## 📁 Project Structure
 
 ```
@@ -90,9 +165,22 @@ sr_v1/
 │   │   └── main.jsx
 │   ├── .env.example            # Environment variables template
 │   └── package.json
-├── scripts/                     # Python data processing (future)
+│
+├── scripts/                     # Python data processing scripts
+│   ├── README.md               # Python setup guide
+│   ├── schema.sql              # Database schema
+│   ├── test_data.sql           # Sample data
+│   ├── requirements.txt        # Python dependencies
+│   ├── .env.example            # Python env template
+│   ├── roads_data.json         # Road definitions
+│   ├── osm_utils.py            # OSM data fetching
+│   ├── metrics.py              # Metrics calculation
+│   ├── elevation.py            # Elevation data
+│   └── process_roads.py        # Main processing script
+│
 ├── docs/
 │   └── PRD.md                  # Product Requirements Document
+│
 └── README.md                    # This file
 ```
 
@@ -115,6 +203,8 @@ sr_v1/
 - [x] Project foundation with React + Vite
 - [x] Tailwind CSS design system
 - [x] Supabase integration ready
+- [x] Database schema with PostGIS
+- [x] Python data processing scripts (placeholders)
 - [ ] Road list sidebar with search
 - [ ] Animated route visualization
 - [ ] Detailed metrics panel
