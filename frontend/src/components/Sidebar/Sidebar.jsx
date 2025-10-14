@@ -171,6 +171,7 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
               }
             }}
             filterRegion={filterRegion}
+            searchQuery={searchQuery}
           />
         </div>
       </aside>
