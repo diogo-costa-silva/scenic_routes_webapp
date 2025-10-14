@@ -22,3 +22,8 @@ build/
 
 # OS
 .DS_Store
+
+# Scripts - Test/Debug files
+scripts/*_only.json
+scripts/*_test.json
+scripts/*_debug.json
