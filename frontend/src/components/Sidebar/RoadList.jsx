@@ -16,11 +16,33 @@ import RoadListItem from './RoadListItem';
  * @param {number|null} props.selectedRoadId - ID of currently selected road
  * @param {Function} props.onRoadSelect - Callback when a road is clicked
  * @param {string|null} props.filterRegion - Optional region filter
+ * @param {string} props.searchQuery - Search query to filter roads by code or name
  */
-const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null }) => {
+const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, searchQuery = '' }) => {
   const { roads, loading, error, refetch, groupedRoads, isEmpty } = useRoads({
     region: filterRegion
   });
+
+  // Filter roads based on search query (case-insensitive)
+  const filteredRoads = roads.filter(road => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase();
+    const codeMatch = road.code.toLowerCase().includes(query);
+    const nameMatch = road.name.toLowerCase().includes(query);
+
+    return codeMatch || nameMatch;
+  });
+
+  // Group filtered roads by region
+  const filteredGroupedRoads = filteredRoads.reduce((acc, road) => {
+    const region = road.region || 'Other';
+    if (!acc[region]) {
+      acc[region] = [];
+    }
+    acc[region].push(road);
+    return acc;
+  }, {});
 
   // Loading skeleton
   if (loading) {
@@ -114,23 +136,37 @@ const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null }) 
     );
   }
 
+  // No search results
+  if (searchQuery.trim() && filteredRoads.length === 0) {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-5xl mb-3">🔍</div>
+        <h3 className="font-semibold text-gray-800 mb-2">No Results Found</h3>
+        <p className="text-sm text-gray-600">
+          No roads match "{searchQuery}". Try a different search term.
+        </p>
+      </div>
+    );
+  }
+
   // Region order for consistent display
   const regionOrder = ['Continental', 'Madeira', 'Açores'];
-  const regionsToDisplay = regionOrder.filter(region => groupedRoads[region]?.length > 0);
+  const regionsToDisplay = regionOrder.filter(region => filteredGroupedRoads[region]?.length > 0);
 
   return (
     <div className="overflow-y-auto h-full">
       {/* Total count */}
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
         <p className="text-sm text-gray-600">
-          <span className="font-semibold text-gray-800">{roads.length}</span> roads available
+          <span className="font-semibold text-gray-800">{filteredRoads.length}</span>
+          {searchQuery.trim() ? ' results' : ' roads available'}
         </p>
       </div>
 
       {/* Roads grouped by region */}
       <div>
         {regionsToDisplay.map((region) => {
-          const regionRoads = groupedRoads[region];
+          const regionRoads = filteredGroupedRoads[region];
           const regionColorMap = {
             Continental: 'text-region-continental',
             Madeira: 'text-region-madeira',
@@ -171,7 +207,8 @@ const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null }) 
 RoadList.propTypes = {
   selectedRoadId: PropTypes.number,
   onRoadSelect: PropTypes.func.isRequired,
-  filterRegion: PropTypes.oneOf(['Continental', 'Madeira', 'Açores', null])
+  filterRegion: PropTypes.oneOf(['Continental', 'Madeira', 'Açores', null]),
+  searchQuery: PropTypes.string
 };
 
 export default RoadList;
