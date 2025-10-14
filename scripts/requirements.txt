@@ -31,10 +31,8 @@ python-dotenv==1.0.1
 # Supabase Client
 # ============================================================================
 # Official Supabase Python client for database operations
+# Note: Supabase will automatically install compatible postgrest version
 supabase==2.9.0
-
-# Additional dependency for Supabase client
-postgrest==0.18.0
 
 # ============================================================================
 # JSON & Data Processing
