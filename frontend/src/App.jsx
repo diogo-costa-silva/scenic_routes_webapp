@@ -1,5 +1,8 @@
 import RoadMap from './components/Map/RoadMap';
 
+// Import connection test for development
+import './utils/testConnection';
+
 function App() {
   return (
     <div className="w-full h-screen">
