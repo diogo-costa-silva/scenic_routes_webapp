@@ -390,8 +390,16 @@ def get_road_geometry_hybrid(
     matched_geo_valid = matched_quality_report['geo_valid']
     matched_density_valid = matched_quality_report['density_valid']
 
+    # Distance validation for Map Matching result
+    matched_distance_diff_pct = abs(matched_distance_km - expected_distance_km) / expected_distance_km
+    matched_distance_valid = matched_distance_diff_pct <= DISTANCE_TOLERANCE
+
+    if not matched_distance_valid:
+        print(f"⚠️  Warning: Map Matching distance {matched_distance_km:.2f}km differs "
+              f"{matched_distance_diff_pct*100:.1f}% from expected {expected_distance_km}km")
+
     # Check if Map Matching improved quality
-    if matched_density_valid and matched_geo_valid and len(matched_coords) >= MIN_POINTS:
+    if matched_density_valid and matched_geo_valid and matched_distance_valid and len(matched_coords) >= MIN_POINTS:
         print(f"\n✅ Map Matching quality GOOD - using refined geometry")
         print(f"   Source: mapbox_matching")
         print(f"   Density: {matched_density:.2f} pts/km (was {density:.2f})")
@@ -414,6 +422,14 @@ def get_road_geometry_hybrid(
 
     else:
         print(f"\n❌ Map Matching quality still POOR - rejecting road")
+        if not matched_density_valid:
+            print(f"   • Density {matched_density:.2f} < {MIN_DENSITY} pts/km")
+        if not matched_geo_valid:
+            print(f"   • Some points outside Portugal bounds")
+        if not matched_distance_valid:
+            print(f"   • Distance {matched_distance_km:.2f}km differs {matched_distance_diff_pct*100:.1f}% from expected {expected_distance_km}km")
+        if len(matched_coords) < MIN_POINTS:
+            print(f"   • Only {len(matched_coords)} points (minimum: {MIN_POINTS})")
         print(f"   Better NO road than BAD road")
         return None
 
