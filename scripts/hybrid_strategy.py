@@ -38,7 +38,7 @@ from geopy.distance import geodesic
 
 # Import our modules
 from osm_utils import get_road_from_osm
-from mapbox_matching import batch_map_matching
+from mapbox_matching import batch_map_matching, validate_coordinates_for_matching
 from validation import (
     validate_geometry_density,
     validate_all_points_in_portugal,
@@ -353,6 +353,22 @@ def get_road_geometry_hybrid(
         return None
 
     print(f"\n🗺️  Trying Map Matching API fallback...")
+
+    # Pre-validate: Check for large coordinate gaps
+    print(f"   🔍 Pre-validating coordinates...")
+    coords_valid, warnings = validate_coordinates_for_matching(osm_coords)
+
+    if warnings:
+        for warning in warnings:
+            print(f"      {warning}")
+
+    if not coords_valid:
+        print(f"\n❌ Pre-validation failed: Too many disconnected segments")
+        print(f"   Map Matching would fail or produce poor results")
+        print(f"   Rejecting road {road_ref}")
+        return None
+
+    print(f"   ✅ Pre-validation passed - proceeding with Map Matching")
 
     # Use Map Matching to refine
     matched_coords = batch_map_matching(osm_coords, mapbox_token)

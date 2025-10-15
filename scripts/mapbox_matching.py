@@ -27,6 +27,7 @@ Directions API (DO NOT USE):
 import requests
 import time
 from typing import List, Tuple, Optional, Dict
+from geopy.distance import geodesic
 
 
 # ==============================================================================
@@ -37,6 +38,79 @@ MAPBOX_API_BASE = "https://api.mapbox.com/matching/v5/mapbox"
 RATE_LIMIT_DELAY = 0.2  # seconds (600/min → 5/sec safe)
 REQUEST_TIMEOUT = 30  # seconds
 MAX_COORDS_PER_REQUEST = 100  # Mapbox limit
+
+# Pre-validation thresholds
+MAX_GAP_KM = 50.0  # Maximum acceptable gap between consecutive points
+MAX_LARGE_GAPS = 5  # Maximum number of large gaps allowed
+
+
+# ==============================================================================
+# Pre-Validation
+# ==============================================================================
+
+def validate_coordinates_for_matching(
+    coordinates: List[Tuple[float, float]],
+    max_gap_km: float = MAX_GAP_KM,
+    max_gaps_allowed: int = MAX_LARGE_GAPS
+) -> Tuple[bool, List[str]]:
+    """
+    Validate coordinates before Map Matching to detect disconnected segments.
+
+    Checks for large gaps between consecutive coordinates that indicate
+    disconnected road segments. Such data will fail or produce poor results
+    from Map Matching API, wasting API quota.
+
+    Args:
+        coordinates: List of (lon, lat) tuples
+        max_gap_km: Maximum acceptable gap in kilometers (default: 50km)
+        max_gaps_allowed: Maximum number of large gaps allowed (default: 5)
+
+    Returns:
+        (is_valid, warnings) tuple where:
+        - is_valid: True if data is suitable for Map Matching
+        - warnings: List of warning messages about detected issues
+
+    Example:
+        >>> coords = [(-7.79, 41.16), (-7.75, 41.17), (100.0, 50.0)]
+        >>> valid, warnings = validate_coordinates_for_matching(coords)
+        >>> if not valid:
+        ...     print(f"Validation failed: {warnings}")
+        Validation failed: ['Large gap detected: 8234.5 km between points 1-2']
+    """
+
+    if not coordinates or len(coordinates) < 2:
+        return True, []  # Empty or single point - technically valid
+
+    warnings = []
+    large_gaps = []
+
+    for i in range(len(coordinates) - 1):
+        point1 = (coordinates[i][1], coordinates[i][0])  # (lat, lon)
+        point2 = (coordinates[i + 1][1], coordinates[i + 1][0])
+
+        distance_km = geodesic(point1, point2).kilometers
+
+        if distance_km > max_gap_km:
+            large_gaps.append((i, i + 1, distance_km))
+            warnings.append(
+                f"Large gap: {distance_km:.1f}km between points {i}-{i+1} "
+                f"({coordinates[i]} → {coordinates[i+1]})"
+            )
+
+    # Check if too many large gaps
+    num_gaps = len(large_gaps)
+    is_valid = num_gaps <= max_gaps_allowed
+
+    if num_gaps > 0:
+        warnings.insert(0, f"Found {num_gaps} large gaps (>{max_gap_km}km)")
+        if not is_valid:
+            warnings.append(
+                f"❌ Too many disconnected segments ({num_gaps} > {max_gaps_allowed})"
+            )
+            warnings.append("💡 Data likely contains multiple roads with same ref")
+            warnings.append("💡 Pre-filtering recommended before Map Matching")
+
+    return is_valid, warnings
 
 
 # ==============================================================================
