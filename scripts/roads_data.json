@@ -13,16 +13,29 @@
     "category": "River Valley"
   },
   {
-    "code": "N339",
-    "name": "Covilhã → Torre",
+    "code": "N2",
+    "name": "Chaves → Faro",
     "region": "Continental",
-    "osm_ref": "EN 339",
-    "osm_bbox": [40.2, -7.7, 40.5, -7.4],
-    "expected_distance_km": 20.0,
-    "description": "Climb to Portugal's highest point at 1993m altitude in Serra da Estrela",
-    "start_point_name": "Covilhã",
-    "end_point_name": "Torre",
+    "osm_ref": "EN 2",
+    "osm_bbox": [37.0, -8.5, 41.75, -7.4],
+    "expected_distance_km": 739.0,
+    "description": "Portugal's longest national road, traversing the country from north to south through diverse landscapes",
+    "start_point_name": "Chaves",
+    "end_point_name": "Faro",
     "surface": "asphalt",
-    "category": "Mountain"
+    "category": "Long Distance"
+  },
+  {
+    "code": "N247",
+    "name": "Cascais → Ericeira",
+    "region": "Continental",
+    "osm_ref": "EN 247",
+    "osm_bbox": [38.7, -9.5, 38.97, -9.15],
+    "expected_distance_km": 45.0,
+    "description": "Coastal road connecting Cascais to Ericeira with ocean views and scenic beaches",
+    "start_point_name": "Cascais",
+    "end_point_name": "Ericeira",
+    "surface": "asphalt",
+    "category": "Coastal"
   }
 ]
