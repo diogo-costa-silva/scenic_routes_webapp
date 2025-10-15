@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import RoadMap from './components/Map/RoadMap';
 import Sidebar from './components/Sidebar/Sidebar';
+import RoadDetails from './components/Details/RoadDetails';
 
 // Import connection test for development
 import './utils/testConnection';
@@ -11,7 +12,6 @@ function App() {
   const handleRoadSelect = (road) => {
     console.log('Road selected:', road);
     setSelectedRoad(road);
-    // TODO: Next session - update RoadMap to visualize selected road
   };
 
   return (
@@ -39,26 +39,13 @@ function App() {
         {/* Map */}
         <div className="flex-1 relative">
           <RoadMap selectedRoad={selectedRoad} />
-
-          {/* Selected road info (floating) */}
-          {selectedRoad && (
-            <div className="absolute top-4 right-4 bg-white shadow-lg rounded-lg p-4 max-w-sm z-10">
-              <h3 className="font-bold text-primary text-lg mb-1">
-                {selectedRoad.code}
-              </h3>
-              <p className="text-sm text-gray-600 mb-2">{selectedRoad.name}</p>
-              <div className="flex gap-2 text-xs text-gray-700">
-                <span>📏 {selectedRoad.distance_km}km</span>
-                {selectedRoad.curve_count_total && (
-                  <span>🌀 {selectedRoad.curve_count_total} curves</span>
-                )}
-                {selectedRoad.elevation_max && (
-                  <span>⛰️ {selectedRoad.elevation_max}m</span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Road Details Panel */}
+        <RoadDetails
+          selectedRoad={selectedRoad}
+          onClose={() => setSelectedRoad(null)}
+        />
       </main>
     </div>
   );
