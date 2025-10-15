@@ -20,11 +20,16 @@ Prerequisites:
 Flow:
     1. Load road definitions from roads_data.json
     2. For each road:
-       a. Fetch geometry from OSM
+       a. Fetch geometry (Mapbox with waypoints OR OSM)
        b. Calculate distance and curves
        c. Fetch elevation data
-       d. Insert into Supabase
+       d. Validate data quality
+       e. Insert into Supabase
     3. Report results
+
+Data Sources:
+    - Mapbox Directions API (with waypoints): For precise route control
+    - OpenStreetMap Overpass API: For roads without waypoints defined
 ==============================================================================
 """
 
@@ -39,6 +44,16 @@ from supabase import create_client, Client
 from osm_utils import get_road_from_osm
 from metrics import calculate_all_metrics
 from elevation import calculate_elevation_for_coordinates
+from validation import (
+    validate_road_coordinates,
+    validate_wkt_geometry,
+    validate_geometry_density,
+    validate_all_points_in_portugal,
+    get_quality_report,
+    print_quality_report
+)
+from fetch_road_with_waypoints import fetch_route_with_waypoints
+from hybrid_strategy import get_road_geometry_hybrid
 
 
 # ==============================================================================
@@ -87,6 +102,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN", "")
 ROADS_DATA_FILE = "roads_data.json"
 
 
@@ -197,26 +213,101 @@ def process_single_road(road_info: Dict, supabase: Client, skip_existing: bool =
                 print(f"⏭️  Road {code} already exists (ID: {existing_id}), skipping...")
                 return True
 
-        # Step 1: Fetch OSM data with retry
-        print("\n📡 Step 1: Fetching geometry from OpenStreetMap...")
-        osm_ref = road_info.get('osm_ref', code)
-        coordinates = retry_with_backoff(get_road_from_osm, osm_ref)
+        # Step 1: Fetch geometry using HYBRID STRATEGY
+        print("\n📡 Step 1: Fetching geometry with HYBRID STRATEGY...")
 
-        if not coordinates or len(coordinates) < 2:
-            print(f"❌ Error: No coordinates found for {code}")
+        osm_ref = road_info.get('osm_ref', code)
+        osm_bbox = road_info.get('osm_bbox')
+        expected_distance_km = road_info.get('expected_distance_km', 0)
+
+        # Validate required fields
+        if not osm_bbox:
+            print(f"❌ Error: Missing osm_bbox for {code}")
+            print(f"   Add 'osm_bbox' to road definition in roads_data.json")
             return False
 
-        print(f"✅ Found {len(coordinates)} GPS points")
+        if not expected_distance_km or expected_distance_km <= 0:
+            print(f"❌ Error: Missing or invalid expected_distance_km for {code}")
+            print(f"   Add 'expected_distance_km' to road definition in roads_data.json")
+            return False
+
+        # Use hybrid strategy (OSM → Validate → Map Matching if needed)
+        result = get_road_geometry_hybrid(
+            road_ref=osm_ref,
+            bbox=tuple(osm_bbox),
+            expected_distance_km=expected_distance_km,
+            mapbox_token=MAPBOX_TOKEN if MAPBOX_TOKEN else None
+        )
+
+        if not result:
+            print(f"❌ Error: Hybrid strategy failed for {code}")
+            print(f"   Road quality does not meet minimum standards")
+            return False
+
+        # Extract coordinates and metadata from result
+        coordinates = result.coordinates
+        data_source = result.source  # 'osm_recursive' or 'mapbox_matching'
+        distance_km = result.distance_km
+
+        print(f"\n✅ Geometry acquired successfully:")
+        print(f"   Source: {data_source}")
+        print(f"   Points: {result.point_count}")
+        print(f"   Distance: {distance_km:.2f} km")
+        print(f"   Density: {result.density:.2f} pts/km")
+        print(f"   Quality: {result.quality_report['quality']}")
+
+        # Step 1.5: Validate coordinates are within Portugal
+        print("\n🔍 Step 1.5: Validating coordinates...")
+        road_info_with_coords = {
+            **road_info,
+            'coordinates': coordinates
+        }
+        is_valid, errors = validate_road_coordinates(road_info_with_coords)
+
+        if not is_valid:
+            print(f"❌ VALIDATION FAILED: Road coordinates are invalid!")
+            for error in errors:
+                print(f"   • {error}")
+            print("\n⚠️  This road has coordinates outside Portugal.")
+            print("   Common causes:")
+            print("   • Latitude and longitude are swapped")
+            print("   • Wrong OSM reference")
+            print("   • Incorrect OSM data")
+            print("\n   Please check the road definition and try again.")
+            return False
+
+        print(f"✅ Coordinates validated: All points are within Portugal bounds")
 
         # Step 2: Calculate metrics
+        # Note: Distance already calculated by hybrid strategy, reuse it
         print("\n📊 Step 2: Calculating metrics...")
         try:
             metrics = calculate_all_metrics(coordinates)
-            print(f"✅ Distance: {metrics.get('distance_km', 0)} km")
+            # Override distance with hybrid strategy result (more accurate)
+            metrics['distance_km'] = distance_km
+            print(f"✅ Distance: {distance_km:.2f} km (from hybrid strategy)")
             print(f"✅ Curves: {metrics.get('curve_count_total', 0)}")
         except Exception as e:
             print(f"❌ Error calculating metrics: {e}")
             return False
+
+        # Step 2.5: Quality already validated by hybrid strategy
+        # But we'll re-display the report for transparency
+        print("\n🔍 Step 2.5: Quality report (from hybrid strategy)...")
+        quality_report = result.quality_report
+
+        # Display quality report
+        print_quality_report(quality_report)
+
+        # Hybrid strategy already rejected poor quality roads
+        # This is just a sanity check
+        if quality_report['quality'] == 'REJECTED':
+            print(f"❌ REJECTED: Road {code} does not meet quality standards")
+            return False
+
+        # Quality check passed (guaranteed by hybrid strategy)
+        print(f"✅ Quality validation PASSED - {quality_report['quality']} quality")
+        print(f"   Proceeding with elevation and database insertion...")
 
         # Step 3: Calculate elevation with retry
         print("\n🏔️  Step 3: Calculating elevation (this may take a while)...")
@@ -239,7 +330,15 @@ def process_single_road(road_info: Dict, supabase: Client, skip_existing: bool =
 
         # Step 4: Prepare data for database
         print("\n💾 Step 4: Preparing database entry...")
-        road_data = prepare_road_data(road_info, coordinates, metrics, elevation_metrics)
+        road_data = prepare_road_data(road_info, coordinates, metrics, elevation_metrics, data_source)
+
+        # Step 4.5: Validate WKT geometry before inserting
+        print("\n🔍 Step 4.5: Validating WKT geometry...")
+        is_valid, error = validate_wkt_geometry(road_data['geometry'])
+        if not is_valid:
+            print(f"❌ WKT VALIDATION FAILED: {error}")
+            return False
+        print("✅ WKT geometry validated")
 
         # Step 5: Insert into Supabase with retry
         print("\n📥 Step 5: Inserting into database...")
@@ -272,7 +371,8 @@ def prepare_road_data(
     road_info: Dict,
     coordinates: List,
     metrics: Dict,
-    elevation_metrics: Dict
+    elevation_metrics: Dict,
+    data_source: str = 'osm'
 ) -> Dict:
     """
     Prepare road data dictionary for database insertion.
@@ -282,6 +382,7 @@ def prepare_road_data(
         coordinates (List): GPS coordinates
         metrics (Dict): Calculated metrics
         elevation_metrics (Dict): Elevation metrics
+        data_source (str): Source of geometry data ('osm', 'mapbox_waypoints', etc.)
 
     Returns:
         Dict: Complete road data ready for database
@@ -317,7 +418,7 @@ def prepare_road_data(
         # Characteristics
         "surface": road_info.get('surface', 'asphalt'),
         "surface_verified": False,
-        "data_source": "osm"
+        "data_source": data_source
     }
 
 
