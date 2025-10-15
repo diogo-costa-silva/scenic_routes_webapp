@@ -250,11 +250,15 @@ def get_road_from_osm(road_ref: str, bbox: Optional[Tuple[float, float, float, f
         raise ValueError(f"Invalid road reference: {road_ref}")
 
     # Default to Portugal bounding box if not provided
-    # Portugal mainland only (tighter bbox for better performance)
+    # TIGHT bbox for Continental Portugal to avoid fetching roads from other countries
+    # (Previous bbox was too wide and returned roads from Africa with same ref)
     if bbox is None:
-        bbox = (37.0, -9.5, 42.2, -6.2)  # Continental only - faster queries
+        # Continental Portugal ONLY - very restrictive to ensure quality
+        bbox = (36.96, -9.50, 42.15, -6.19)  # Lat: 36.96-42.15°N, Lon: -9.50 to -6.19°W
+        print(f"📍 Using Continental Portugal bbox: {bbox}")
 
     print(f"📡 Fetching road data for: {road_ref}")
+    print(f"   Bounding box: S={bbox[0]}, W={bbox[1]}, N={bbox[2]}, E={bbox[3]}")
 
     # STEP 1: Try loading from cache
     cached = _load_cache(road_ref)
@@ -317,6 +321,11 @@ def get_road_from_osm(road_ref: str, bbox: Optional[Tuple[float, float, float, f
 
                 if coordinates:
                     print(f"   ✅ Found {len(coordinates)} GPS points with format: {alt_ref}")
+
+                    # Log quality warning if needed
+                    if len(coordinates) < 100:
+                        print(f"   ⚠️  WARNING: Only {len(coordinates)} points - may be insufficient")
+
                     _save_cache(road_ref, coordinates)
                     return coordinates
 
@@ -326,6 +335,11 @@ def get_road_from_osm(road_ref: str, bbox: Optional[Tuple[float, float, float, f
             return []
 
         print(f"   ✅ Found {len(coordinates)} GPS points")
+
+        # Log quality metrics (informational only, actual validation happens in process_roads.py)
+        if len(coordinates) < 100:
+            print(f"   ⚠️  WARNING: Only {len(coordinates)} points - may be insufficient")
+
         _save_cache(road_ref, coordinates)
         return coordinates
 
@@ -646,10 +660,12 @@ def merge_way_segments(segments: List[List[Tuple[float, float]]]) -> List[Tuple[
                 break
 
         # If no segment connected, add remaining as separate parts
-        # (This handles disconnected road segments)
+        # (This handles disconnected road segments - common for roads like N304)
         if not connected:
             print(f"   ⚠️  Warning: {len(remaining)} segment(s) could not be connected")
-            # Add remaining segments anyway
+            print(f"   ℹ️  This is normal for roads with disconnected sections (e.g., N304)")
+            print(f"   📍 All segments will be included, but may show visual gaps on map")
+            # Add remaining segments anyway - keeps all road data
             for segment in remaining:
                 merged.extend(segment)
             break
