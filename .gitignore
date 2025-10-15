@@ -6,6 +6,7 @@
 CLAUDE.md
 /tasks/
 screenshots/
+context/
 
 # Dependencies
 node_modules/
