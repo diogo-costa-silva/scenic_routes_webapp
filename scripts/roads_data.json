@@ -13,25 +13,12 @@
     "category": "River Valley"
   },
   {
-    "code": "N2",
-    "name": "Chaves → Faro",
-    "region": "Continental",
-    "osm_ref": "EN 2",
-    "osm_bbox": [36.9, -9.0, 41.8, -6.0],
-    "expected_distance_km": 739.0,
-    "description": "Portugal's legendary Route 66 - 739km from North to South",
-    "start_point_name": "Chaves",
-    "end_point_name": "Faro",
-    "surface": "asphalt",
-    "category": "Long Distance"
-  },
-  {
     "code": "N339",
     "name": "Covilhã → Torre",
     "region": "Continental",
     "osm_ref": "EN 339",
     "osm_bbox": [40.2, -7.7, 40.5, -7.4],
-    "expected_distance_km": 35.0,
+    "expected_distance_km": 20.0,
     "description": "Climb to Portugal's highest point at 1993m altitude in Serra da Estrela",
     "start_point_name": "Covilhã",
     "end_point_name": "Torre",
@@ -43,25 +30,12 @@
     "name": "Cascais → Ericeira",
     "region": "Continental",
     "osm_ref": "EN 247",
-    "osm_bbox": [38.6, -9.5, 39.0, -9.3],
-    "expected_distance_km": 45.0,
+    "osm_bbox": [38.68, -9.48, 38.98, -9.38],
+    "expected_distance_km": 50.0,
     "description": "Stunning coastal road through fishing villages and Atlantic views",
     "start_point_name": "Cascais",
     "end_point_name": "Ericeira",
     "surface": "asphalt",
     "category": "Coastal"
-  },
-  {
-    "code": "N304",
-    "name": "Covilhã → Penhas da Saúde",
-    "region": "Continental",
-    "osm_ref": "EN 304",
-    "osm_bbox": [40.2, -7.6, 40.4, -7.4],
-    "expected_distance_km": 25.0,
-    "description": "Mountain road through Serra da Estrela with spectacular views",
-    "start_point_name": "Covilhã",
-    "end_point_name": "Penhas da Saúde",
-    "surface": "asphalt",
-    "category": "Mountain"
   }
 ]
