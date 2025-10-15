@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS roads (
     -- ========================================================================
     -- Metadata
     -- ========================================================================
-    data_source VARCHAR(50) DEFAULT 'osm',              -- "osm", "manual", "gps_trace"
+    data_source VARCHAR(50) DEFAULT 'hybrid',           -- "osm_recursive", "mapbox_matching", "hybrid"
     last_validated_at TIMESTAMP,                        -- Last manual validation
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
