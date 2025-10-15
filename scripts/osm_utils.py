@@ -33,6 +33,9 @@ CACHE_MAX_AGE_DAYS = 30  # Cache expires after 30 days
 SEGMENTATION_ENABLED = True  # Auto-segment on timeout
 NUM_SEGMENTS = 4  # Divide bbox into 4 vertical segments
 
+# Disconnected segments threshold
+MAX_DISCONNECTED_SEGMENTS = 10  # Maximum disconnected segments to allow
+
 
 # ==============================================================================
 # Cache Functions
@@ -659,13 +662,23 @@ def merge_way_segments(segments: List[List[Tuple[float, float]]]) -> List[Tuple[
                 connected = True
                 break
 
-        # If no segment connected, add remaining as separate parts
-        # (This handles disconnected road segments - common for roads like N304)
+        # If no segment connected, handle disconnected segments
         if not connected:
-            print(f"   ⚠️  Warning: {len(remaining)} segment(s) could not be connected")
-            print(f"   ℹ️  This is normal for roads with disconnected sections (e.g., N304)")
-            print(f"   📍 All segments will be included, but may show visual gaps on map")
-            # Add remaining segments anyway - keeps all road data
+            num_disconnected = len(remaining)
+            print(f"   ⚠️  Warning: {num_disconnected} segment(s) could not be connected")
+
+            # If too many disconnected segments, likely multiple roads with same ref
+            # Only keep the largest continuous segment (reject the rest)
+            if num_disconnected > MAX_DISCONNECTED_SEGMENTS:
+                print(f"   ❌ Too many disconnected segments ({num_disconnected} > {MAX_DISCONNECTED_SEGMENTS})")
+                print(f"   💡 Likely multiple roads with same ref in OSM")
+                print(f"   📍 Keeping only the largest continuous segment ({len(merged)} points)")
+                break
+
+            # Few disconnected segments - normal for roads like N304
+            # Add them all (original behavior)
+            print(f"   ℹ️  This is normal for roads with disconnected sections")
+            print(f"   📍 Including all segments (may show visual gaps on map)")
             for segment in remaining:
                 merged.extend(segment)
             break
