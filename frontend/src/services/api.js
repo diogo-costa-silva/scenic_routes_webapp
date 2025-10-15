@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import { wktToGeoJSON, geojsonToWKT } from '../utils/geoUtils.js';
+import {
+  wktToGeoJSON,
+  geojsonToWKT,
+  validatePortugalCoordinates,
+  validateRoadCoordinates
+} from '../utils/geoUtils.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -11,7 +16,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Re-export geo utilities for convenience
-export { wktToGeoJSON, geojsonToWKT };
+export {
+  wktToGeoJSON,
+  geojsonToWKT,
+  validatePortugalCoordinates,
+  validateRoadCoordinates
+};
 
 /**
  * Fetch all roads with basic information (optimized for list view)
