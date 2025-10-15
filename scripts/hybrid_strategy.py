@@ -315,7 +315,7 @@ def get_road_geometry_hybrid(
               f"(tolerance: {DISTANCE_TOLERANCE*100:.0f}%)")
 
     # STEP 4a: If OSM quality is GOOD, use it
-    if density_valid and geo_valid and len(osm_coords) >= MIN_POINTS:
+    if density_valid and geo_valid and distance_valid and len(osm_coords) >= MIN_POINTS:
         print(f"\n✅ OSM quality GOOD - using OSM geometry")
         print(f"   Source: osm_recursive")
         print(f"   Density: {density:.2f} pts/km")
@@ -342,6 +342,8 @@ def get_road_geometry_hybrid(
         print(f"   • Density {density:.2f} < {MIN_DENSITY} pts/km")
     if not geo_valid:
         print(f"   • Some points outside Portugal bounds")
+    if not distance_valid:
+        print(f"   • Distance {distance_km:.2f}km differs {distance_diff_pct*100:.1f}% from expected {expected_distance_km}km")
     if len(osm_coords) < MIN_POINTS:
         print(f"   • Only {len(osm_coords)} points (minimum: {MIN_POINTS})")
 
