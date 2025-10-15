@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import mapboxgl from 'mapbox-gl';
-import { wktToGeoJSON } from '../../utils/geoUtils';
+import { wktToGeoJSON, validateRoadCoordinates } from '../../utils/geoUtils';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const PORTUGAL_CENTER = [-8.0, 39.5];
@@ -182,6 +182,19 @@ const RoadMap = ({
     }
 
     console.log('🎨 Drawing route for:', selectedRoad.code);
+
+    // Validate coordinates are within Portugal
+    const validationResult = validateRoadCoordinates(selectedRoad);
+    if (!validationResult.valid) {
+      console.error(
+        `⚠️ Road ${selectedRoad.code} has invalid coordinates (possibly outside Portugal):`,
+        validationResult.errors
+      );
+      console.error('This road will not be displayed on the map.');
+      console.error('Please check the database coordinates for this road.');
+      // Don't render roads with invalid coordinates
+      return;
+    }
 
     // Validate geometry
     if (!selectedRoad.geometry) {
