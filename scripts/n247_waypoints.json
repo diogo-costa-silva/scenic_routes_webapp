@@ -1,0 +1,50 @@
+{
+  "road_code": "N247",
+  "road_name": "Cascais → Ericeira",
+  "total_distance_km": 45.0,
+  "description": "Coastal road with ocean views, connecting Cascais to Ericeira via Cabo da Roca",
+  "waypoints": [
+    {
+      "name": "Cascais",
+      "lat": 38.6979,
+      "lon": -9.4215,
+      "description": "Start point - coastal town west of Lisbon"
+    },
+    {
+      "name": "Guincho",
+      "lat": 38.7308,
+      "lon": -9.4736,
+      "description": "Famous beach area along N247"
+    },
+    {
+      "name": "Cabo da Roca",
+      "lat": 38.7809,
+      "lon": -9.4984,
+      "description": "Westernmost point of continental Europe"
+    },
+    {
+      "name": "Colares",
+      "lat": 38.7992,
+      "lon": -9.4469,
+      "description": "Historic village in Sintra region"
+    },
+    {
+      "name": "Praia das Maçãs",
+      "lat": 38.8249,
+      "lon": -9.4699,
+      "description": "Beach town north of Sintra"
+    },
+    {
+      "name": "Ericeira",
+      "lat": 38.9628,
+      "lon": -9.4156,
+      "description": "End point - famous surfing destination"
+    }
+  ],
+  "notes": [
+    "6 waypoints divide route into 5 sections",
+    "Expected ~2,000-3,000 GPS points total",
+    "Density target: >10 pts/km",
+    "Using Mapbox Directions API strategy (same as N2)"
+  ]
+}
