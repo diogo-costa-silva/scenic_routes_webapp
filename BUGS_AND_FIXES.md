@@ -10,9 +10,9 @@ This document serves as the central registry for tracking all bugs, issues, and 
 
 | Status | Count |
 |--------|-------|
-| 🟢 Fixed | 4 |
+| 🟢 Fixed | 5 |
 | 🟡 In Progress | 0 |
-| 🔴 Open | 1 |
+| 🔴 Open | 0 |
 | **Total** | **5** |
 
 **Last Updated:** October 15, 2025
@@ -462,9 +462,9 @@ roads_data.json → process_roads.py → OSM API (1000s points)
 
 ## 🐛 Bug #005: N247 OSM Data Extremely Fragmented
 
-**Status:** 🔴 OPEN
+**Status:** ✅ FIXED
 **Date Found:** October 15, 2025
-**Date Fixed:** (Not yet fixed)
+**Date Fixed:** October 15, 2025
 **Severity:** 🟠 High
 **Component:** Scripts (Data Processing)
 **Found By:** Testing N247 processing pipeline
@@ -487,31 +487,76 @@ Same as Bug #004 - OSM data for N247 is fragmented into many small disconnected 
 1. ✅ Expanded bbox from `[38.7, -9.5, 38.97, -9.15]` to `[38.65, -9.55, 39.0, -9.1]`
 2. ❌ Made it WORSE - found 174 segments (vs 111 before), only 1.12km recovered
 
-### Solution (Planned)
-**Use same strategy as N2:**
-1. Create `n247_waypoints.json` with 5-7 intermediate points
-2. Use `generate_n247_from_waypoints.py` (adapt N2 script)
-3. Process with Directions API
-4. Validate and insert
+### Solution Implemented
+**Used same strategy as N2: Waypoints + Mapbox Directions API**
 
-**Expected Results:**
-- ~2,000-3,000 GPS points (45km × ~50 pts/km)
-- Density > 10 pts/km
-- Quality: EXCELLENT
-- Processing time: ~60-90s
+#### 1. Created `n247_waypoints.json`
+- Defined 6 waypoints along N247 route:
+  1. Cascais (start)
+  2. Guincho (beach area)
+  3. Cabo da Roca (westernmost point of Europe)
+  4. Colares (historic village)
+  5. Praia das Maçãs (beach town)
+  6. Ericeira (end - surfing destination)
+- Divides route into 5 sections for processing
 
-### Status
-- ⚠️ **DEFERRED** - Lower priority than N2
-- N247 is important but not critical
-- N2 (739km iconic route) took priority
-- Will be addressed in next development session
+#### 2. Created `generate_n247_from_waypoints.py`
+- Adapted from N2 geometry generator
+- Processes each section independently (waypoint_i → waypoint_i+1)
+- Uses Directions API to generate detailed route geometry
+- Validates quality (density, distance, bounds)
+- Merges all sections into single geometry
 
-### Prevention
-Same measures as Bug #004 - use waypoints strategy for roads with fragmented OSM data.
+**Results:**
+- ✅ **2,890 GPS points** (vs 90 from OSM fragmentation!)
+- ✅ **56.89 km** (vs 45km expected - 26% longer, coastal curves)
+- ✅ **50.81 pts/km density** (25x above minimum of 2.0)
+- ✅ **Quality: EXCELLENT**
+- ✅ **100% section success rate** (5/5 sections processed)
+
+#### 3. Updated `roads_data.json`
+- Added `use_external_geometry: true` flag
+- Added `geometry_file: "n247_from_waypoints.json"`
+- Updated `expected_distance_km: 57.0` to reflect actual route
+
+#### 4. N247 Successfully in Database
+- **ID:** 12
+- **Distance:** 56.88 km
+- **Source:** `waypoints_mapbox_directions`
+- **Curves:** 164
+- **Elevation:** -10m → 70m
+- **Points:** 2,890
+- **Processing Time:** 106.3s (~2 minutes)
+
+### Files Created
+- ✅ `scripts/n247_waypoints.json` (NEW) - 6 waypoints definition
+- ✅ `scripts/generate_n247_from_waypoints.py` (NEW) - Geometry generator
+- ✅ `scripts/n247_from_waypoints.json` (NEW) - Generated geometry (2,890 points, 130KB)
+
+### Files Modified
+- ✅ `scripts/roads_data.json` - N247 configured to use external geometry
+
+### Prevention Measures
+Same as Bug #004 - use waypoints + Directions API strategy for roads with fragmented OSM data.
+
+### Testing
+- ✅ Generated N247 geometry with 5 sections
+- ✅ All sections processed successfully (100% success rate)
+- ✅ Quality validation passed (EXCELLENT - 50.81 pts/km)
+- ✅ Inserted into database (ID: 12)
+- ✅ Elevation calculated (-10m → 70m)
 
 ### Documentation
-- See Bug #004 for complete technical solution
-- N247 will follow same pattern once implemented
+- **Generator Script:** `scripts/generate_n247_from_waypoints.py`
+- **Waypoints:** `scripts/n247_waypoints.json`
+- **Generated Geometry:** `scripts/n247_from_waypoints.json` (130KB)
+- See Bug #004 for complete Directions API strategy details
+
+### Lessons Learned
+1. **Coastal roads may be longer than expected** - N247 was 56.89km vs 45km estimated (curves, coastal detours)
+2. **Waypoints strategy scales well** - Same solution works for roads of different lengths (N2: 739km, N247: 57km)
+3. **High point density from Directions API** - 50.81 pts/km far exceeds minimum requirements
+4. **Fast processing for shorter roads** - 106s for N247 vs 422s for N2 (proportional to distance)
 
 ---
 
@@ -564,20 +609,20 @@ When you find a bug, add a new section using this template:
 - **Frontend:** 0 bugs
 - **Backend:** 0 bugs
 - **Database:** 2 bugs (Bug #001, #003 - Both Fixed)
-- **Scripts:** 4 bugs (Bug #002, #003, #004, #005 - 3 Fixed, 1 Open)
+- **Scripts:** 4 bugs (Bug #002, #003, #004, #005 - All Fixed)
 - **Infrastructure:** 0 bugs
 - **UI/UX:** 0 bugs
 
 ### By Severity
 - **🔴 Critical:** 4 (Bug #001, #002, #003, #004 - All Fixed)
-- **🟠 High:** 1 (Bug #005 - Open)
+- **🟠 High:** 1 (Bug #005 - Fixed)
 - **🟡 Medium:** 0
 - **🟢 Low:** 0
 
 ### By Status
-- **✅ Fixed:** 4
+- **✅ Fixed:** 5
 - **🟡 In Progress:** 0
-- **🔴 Open:** 1
+- **🔴 Open:** 0
 
 ---
 
@@ -721,11 +766,11 @@ When investigating a bug, follow this checklist:
 | #002  | Scripts (OSM) | Critical | Same day |
 | #003  | Database/Scripts | Critical | Same day |
 | #004  | Scripts (N2 Processing) | Critical | Same day |
-| #005  | Scripts (N247 Processing) | High | (Open - Deferred) |
+| #005  | Scripts (N247 Processing) | High | Same day |
 
 **Average Resolution Time:**
 - Critical: Same day ✅ (target: same day) - 4/4 bugs fixed
-- High: N/A (target: 1-2 days) - 1/1 bug open (deferred)
+- High: Same day ✅ (target: 1-2 days) - 1/1 bug fixed
 - Medium: N/A (target: 1 week)
 - Low: N/A (target: flexible)
 
