@@ -54,6 +54,8 @@ from validation import (
 )
 from fetch_road_with_waypoints import fetch_route_with_waypoints
 from hybrid_strategy import get_road_geometry_hybrid
+from process_long_road import process_road_with_waypoints
+from import_gpx_geometry import get_geometry_from_file
 
 
 # ==============================================================================
@@ -213,31 +215,85 @@ def process_single_road(road_info: Dict, supabase: Client, skip_existing: bool =
                 print(f"⏭️  Road {code} already exists (ID: {existing_id}), skipping...")
                 return True
 
-        # Step 1: Fetch geometry using HYBRID STRATEGY
-        print("\n📡 Step 1: Fetching geometry with HYBRID STRATEGY...")
+        # Check if road uses external geometry (pre-generated or GPX)
+        use_external_geometry = road_info.get('use_external_geometry', False)
+        geometry_file = road_info.get('geometry_file')
 
-        osm_ref = road_info.get('osm_ref', code)
-        osm_bbox = road_info.get('osm_bbox')
-        expected_distance_km = road_info.get('expected_distance_km', 0)
+        if use_external_geometry:
+            # EXTERNAL GEOMETRY (for pre-generated/GPX geometries)
+            print("\n📥 Step 1: Loading external geometry...")
 
-        # Validate required fields
-        if not osm_bbox:
-            print(f"❌ Error: Missing osm_bbox for {code}")
-            print(f"   Add 'osm_bbox' to road definition in roads_data.json")
-            return False
+            if not geometry_file:
+                print(f"❌ Error: use_external_geometry=true but geometry_file not specified")
+                print(f"   Add 'geometry_file' to road definition in roads_data.json")
+                return False
 
-        if not expected_distance_km or expected_distance_km <= 0:
-            print(f"❌ Error: Missing or invalid expected_distance_km for {code}")
-            print(f"   Add 'expected_distance_km' to road definition in roads_data.json")
-            return False
+            # Load geometry from file
+            result = get_geometry_from_file(road_info, geometry_file)
 
-        # Use hybrid strategy (OSM → Validate → Map Matching if needed)
-        result = get_road_geometry_hybrid(
-            road_ref=osm_ref,
-            bbox=tuple(osm_bbox),
-            expected_distance_km=expected_distance_km,
-            mapbox_token=MAPBOX_TOKEN if MAPBOX_TOKEN else None
-        )
+            if not result:
+                print(f"❌ Error: Failed to load geometry from {geometry_file}")
+                return False
+
+            # Convert dict to object-like structure (matches GeometryResult)
+            from dataclasses import dataclass
+
+            @dataclass
+            class GeometryResult:
+                coordinates: List
+                source: str
+                distance_km: float
+                point_count: int
+                density: float
+                quality_report: Dict
+                cached: bool = False
+
+            result = GeometryResult(**result)
+
+        # Check if road uses waypoints strategy (for very long roads)
+        elif road_info.get('use_waypoints', False):
+            waypoints_file = road_info.get('waypoints_file')
+            # WAYPOINTS STRATEGY (for roads >100km)
+            print("\n📡 Step 1: Fetching geometry with WAYPOINTS STRATEGY...")
+
+            if not waypoints_file:
+                print(f"❌ Error: use_waypoints=true but waypoints_file not specified")
+                print(f"   Add 'waypoints_file' to road definition in roads_data.json")
+                return False
+
+            # Process using waypoints
+            result = process_road_with_waypoints(
+                road_info=road_info,
+                waypoints_file=waypoints_file,
+                mapbox_token=MAPBOX_TOKEN if MAPBOX_TOKEN else None
+            )
+
+        else:
+            # NORMAL HYBRID STRATEGY (for roads <100km)
+            print("\n📡 Step 1: Fetching geometry with HYBRID STRATEGY...")
+
+            osm_ref = road_info.get('osm_ref', code)
+            osm_bbox = road_info.get('osm_bbox')
+            expected_distance_km = road_info.get('expected_distance_km', 0)
+
+            # Validate required fields
+            if not osm_bbox:
+                print(f"❌ Error: Missing osm_bbox for {code}")
+                print(f"   Add 'osm_bbox' to road definition in roads_data.json")
+                return False
+
+            if not expected_distance_km or expected_distance_km <= 0:
+                print(f"❌ Error: Missing or invalid expected_distance_km for {code}")
+                print(f"   Add 'expected_distance_km' to road definition in roads_data.json")
+                return False
+
+            # Use hybrid strategy (OSM → Validate → Map Matching if needed)
+            result = get_road_geometry_hybrid(
+                road_ref=osm_ref,
+                bbox=tuple(osm_bbox),
+                expected_distance_km=expected_distance_km,
+                mapbox_token=MAPBOX_TOKEN if MAPBOX_TOKEN else None
+            )
 
         if not result:
             print(f"❌ Error: Hybrid strategy failed for {code}")
