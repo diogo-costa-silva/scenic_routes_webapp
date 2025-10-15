@@ -1,0 +1,92 @@
+{
+  "road_code": "N2",
+  "road_name": "Chaves → Faro",
+  "total_distance_km": 739.0,
+  "description": "Portugal's longest national road, divided into 11 sections for processing",
+  "waypoints": [
+    {
+      "name": "Chaves",
+      "lat": 41.7402,
+      "lon": -7.4688,
+      "description": "Northern terminus, near Spanish border"
+    },
+    {
+      "name": "Vila Real",
+      "lat": 41.3006,
+      "lon": -7.7441,
+      "description": "Capital of Vila Real District"
+    },
+    {
+      "name": "Lamego",
+      "lat": 41.0974,
+      "lon": -7.8099,
+      "description": "Historic city in Douro region"
+    },
+    {
+      "name": "Viseu",
+      "lat": 40.6610,
+      "lon": -7.9097,
+      "description": "Major city in central Portugal"
+    },
+    {
+      "name": "Tondela",
+      "lat": 40.5164,
+      "lon": -8.0805,
+      "description": "Municipality in Viseu District"
+    },
+    {
+      "name": "Santa Comba Dão",
+      "lat": 40.3931,
+      "lon": -8.1502,
+      "description": "Town in Viseu District"
+    },
+    {
+      "name": "Abrantes",
+      "lat": 39.4632,
+      "lon": -8.1974,
+      "description": "Town in Santarém District"
+    },
+    {
+      "name": "Ponte de Sor",
+      "lat": 39.2520,
+      "lon": -8.0090,
+      "description": "Municipality in Portalegre District"
+    },
+    {
+      "name": "Montemor-o-Novo",
+      "lat": 38.6483,
+      "lon": -8.2093,
+      "description": "Town in Évora District"
+    },
+    {
+      "name": "Ferreira do Alentejo",
+      "lat": 38.0585,
+      "lon": -8.1138,
+      "description": "Town in Beja District, Alentejo"
+    },
+    {
+      "name": "Faro",
+      "lat": 37.0194,
+      "lon": -7.9322,
+      "description": "Southern terminus, capital of Algarve"
+    }
+  ],
+  "sections": [
+    {"from": "Chaves", "to": "Vila Real", "estimated_distance_km": 60},
+    {"from": "Vila Real", "to": "Lamego", "estimated_distance_km": 50},
+    {"from": "Lamego", "to": "Viseu", "estimated_distance_km": 70},
+    {"from": "Viseu", "to": "Tondela", "estimated_distance_km": 25},
+    {"from": "Tondela", "to": "Santa Comba Dão", "estimated_distance_km": 20},
+    {"from": "Santa Comba Dão", "to": "Abrantes", "estimated_distance_km": 130},
+    {"from": "Abrantes", "to": "Ponte de Sor", "estimated_distance_km": 35},
+    {"from": "Ponte de Sor", "to": "Montemor-o-Novo", "estimated_distance_km": 90},
+    {"from": "Montemor-o-Novo", "to": "Ferreira do Alentejo", "estimated_distance_km": 80},
+    {"from": "Ferreira do Alentejo", "to": "Faro", "estimated_distance_km": 170}
+  ],
+  "notes": [
+    "11 waypoints create 10 sections",
+    "Each section will be processed independently with hybrid strategy",
+    "Total estimated distance: ~730km (close to official 739km)",
+    "Sections will be merged after validation"
+  ]
+}
