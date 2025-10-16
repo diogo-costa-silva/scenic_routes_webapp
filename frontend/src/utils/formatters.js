@@ -101,3 +101,24 @@ export const formatElevationChange = (meters, isGain = true) => {
 export const isValidValue = (value) => {
   return value !== null && value !== undefined && !isNaN(value);
 };
+
+/**
+ * Format data source with human-readable labels
+ * @param {string|null} source - Data source identifier
+ * @returns {string} Formatted data source (e.g., "OSM Recursive", "Mapbox Directions") or "N/A"
+ */
+export const formatDataSource = (source) => {
+  if (!source) {
+    return 'N/A';
+  }
+
+  // Translation map for data sources
+  const sourceTranslations = {
+    osm_recursive: 'OSM Recursive',
+    waypoints_mapbox_directions: 'Mapbox Directions',
+    mapbox_matching: 'Mapbox Map Matching',
+    hybrid: 'Hybrid Strategy',
+  };
+
+  return sourceTranslations[source] || source;
+};

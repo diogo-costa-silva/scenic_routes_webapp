@@ -5,6 +5,7 @@ import {
   formatElevation,
   formatElevationChange,
   formatSurface,
+  formatDataSource,
   isValidValue,
 } from '../../utils/formatters';
 
@@ -180,6 +181,20 @@ const MetricsPanel = ({ road }) => {
           </div>
         </>
       )}
+
+      {/* Data Source */}
+      {road.data_source && (
+        <>
+          <div className="border-t border-gray-200 my-4" />
+          <div className="space-y-1">
+            <MetricRow
+              icon="ℹ️"
+              label="Fonte de Dados"
+              value={formatDataSource(road.data_source)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -217,6 +232,9 @@ MetricsPanel.propTypes = {
     // Points
     start_point_name: PropTypes.string,
     end_point_name: PropTypes.string,
+
+    // Data source
+    data_source: PropTypes.string,
   }),
 };
 
