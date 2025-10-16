@@ -1,166 +1,202 @@
+import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { wktToGeoJSON } from '../../utils/geoUtils';
+import { generateGPX, downloadGPX } from '../../utils/gpxExport';
+import { generateRouteUrl, openInNewTab } from '../../utils/mapLinks';
 
 /**
  * ActionButtons Component
  *
  * Displays action buttons for the selected road:
- * - Export GPX: Download route as GPX file for GPS devices
+ * - Export GPX: Download route as GPX file for GPS devices (with elevation data)
  * - Open in Google Maps: Open route in Google Maps for navigation
+ *
+ * Features:
+ * - Loading states during operations
+ * - Success/error feedback messages
+ * - Disabled state when no road selected
+ * - Responsive design (mobile-friendly)
  *
  * @param {Object} props
  * @param {Object} props.road - Road object with geometry, code, name, distance_km, curve_count_total
  */
 const ActionButtons = ({ road }) => {
+  // UI state
+  const [isExportingGPX, setIsExportingGPX] = useState(false);
+  const [isOpeningMaps, setIsOpeningMaps] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { type: 'success'|'error', message: string }
+
+  /**
+   * Show feedback message temporarily
+   * @param {string} type - 'success' or 'error'
+   * @param {string} message - Message to display
+   */
+  const showFeedback = (type, message) => {
+    setFeedback({ type, message });
+
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setFeedback(null);
+    }, 3000);
+  };
+
   /**
    * Export road geometry as GPX file
-   * Converts WKT geometry to GeoJSON, then to GPX format with metadata
+   * Uses gpxExport utility to generate valid GPX 1.1 XML with elevation data
    */
-  const handleExportGPX = () => {
+  const handleExportGPX = async () => {
     if (!road || !road.geometry) {
-      console.error('Cannot export GPX: Road data or geometry missing');
+      showFeedback('error', 'Road data is missing');
       return;
     }
 
+    setIsExportingGPX(true);
+
     try {
-      // Handle both WKT (string) and GeoJSON (object) formats
-      let geojson;
-      if (typeof road.geometry === 'string') {
-        // WKT format - convert to GeoJSON
-        geojson = wktToGeoJSON(road.geometry);
-        if (!geojson) {
-          console.error('Failed to convert WKT to GeoJSON');
-          return;
-        }
-      } else if (typeof road.geometry === 'object' && road.geometry.type === 'LineString') {
-        // Already GeoJSON Geometry - wrap in Feature and clean up
-        geojson = {
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: road.geometry.coordinates  // Remove crs and other non-standard properties
-          },
-          properties: {}
-        };
-      } else if (typeof road.geometry === 'object' && road.geometry.geometry) {
-        // Already GeoJSON Feature - clean up geometry
-        geojson = {
-          type: 'Feature',
-          geometry: {
-            type: road.geometry.geometry.type,
-            coordinates: road.geometry.geometry.coordinates
-          },
-          properties: road.geometry.properties || {}
-        };
-      } else {
-        console.error('Invalid geometry format');
+      // Generate GPX using utility
+      const result = generateGPX(road);
+
+      if (!result.success) {
+        showFeedback('error', result.error || 'Failed to generate GPX');
         return;
       }
 
-      // Extract coordinates from the GeoJSON
-      const coordinates = geojson.geometry.coordinates;
+      // Trigger download
+      const downloadSuccess = downloadGPX(result.blob, result.filename);
 
-      // Manually create GPX XML
-      const gpxHeader = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Road Explorer Portugal" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${road.code} - ${road.name}</name>
-    <desc>${road.distance_km}km • ${road.curve_count_total || 0} curves • Road Explorer Portugal</desc>
-  </metadata>
-  <trk>
-    <name>${road.code}</name>
-    <trkseg>`;
-
-      const gpxPoints = coordinates
-        .map(([lon, lat]) => `      <trkpt lat="${lat}" lon="${lon}"></trkpt>`)
-        .join('\n');
-
-      const gpxFooter = `
-    </trkseg>
-  </trk>
-</gpx>`;
-
-      const gpx = gpxHeader + '\n' + gpxPoints + gpxFooter;
-
-      // Create blob and trigger download
-      const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${road.code.replace(/\//g, '-')}.gpx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      console.log(`GPX exported successfully: ${road.code}.gpx`);
+      if (downloadSuccess) {
+        showFeedback('success', `GPX file downloaded: ${result.filename}`);
+      } else {
+        showFeedback('error', 'Failed to download GPX file');
+      }
     } catch (error) {
       console.error('Error exporting GPX:', error);
-      alert('Failed to export GPX file. Please try again.');
+      showFeedback('error', 'An unexpected error occurred');
+    } finally {
+      setIsExportingGPX(false);
     }
   };
 
   /**
    * Open road location in Google Maps
-   * Opens Google Maps Directions with the road's start point as destination
+   * Uses mapLinks utility to generate proper Google Maps URL
    */
-  const handleOpenMaps = () => {
+  const handleOpenMaps = async () => {
     if (!road || !road.start_lat || !road.start_lon) {
-      console.error('Cannot open Google Maps: Road coordinates missing');
+      showFeedback('error', 'Road coordinates are missing');
       return;
     }
 
-    try {
-      // Construct Google Maps Directions URL with start point
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${road.start_lat},${road.start_lon}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+    setIsOpeningMaps(true);
 
-      console.log(`Opened Google Maps for: ${road.code}`);
+    try {
+      // Generate Google Maps URL using utility
+      const result = generateRouteUrl(road);
+
+      if (!result.success) {
+        showFeedback('error', result.error || 'Failed to generate maps link');
+        return;
+      }
+
+      // Open in new tab
+      const openSuccess = openInNewTab(result.url);
+
+      if (openSuccess) {
+        showFeedback('success', 'Opened in Google Maps');
+      } else {
+        showFeedback('error', 'Please allow popups to open Google Maps');
+      }
     } catch (error) {
       console.error('Error opening Google Maps:', error);
-      alert('Failed to open Google Maps. Please try again.');
+      showFeedback('error', 'An unexpected error occurred');
+    } finally {
+      // Reset loading state after a short delay
+      setTimeout(() => {
+        setIsOpeningMaps(false);
+      }, 500);
     }
   };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-2 p-4 border-t border-gray-200 bg-white">
-      {/* Export GPX Button */}
-      <button
-        onClick={handleExportGPX}
-        disabled={!road}
-        title="Download GPX file for GPS devices"
-        className={`
-          flex-1 px-4 py-2.5 rounded-md font-medium text-sm
-          flex items-center justify-center gap-2
-          transition-all duration-200
-          ${!road
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 cursor-pointer'
-          }
-        `}
-      >
-        <span className="text-base">📥</span>
-        <span>Export GPX</span>
-      </button>
+    <div className="flex flex-col gap-2 p-4 border-t border-gray-200 bg-white">
+      {/* Feedback Message */}
+      {feedback && (
+        <div
+          className={`
+            px-3 py-2 rounded-md text-sm font-medium
+            flex items-center gap-2
+            transition-all duration-300
+            ${feedback.type === 'success'
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-red-50 text-red-700 border border-red-200'
+            }
+          `}
+          role="alert"
+        >
+          <span className="text-base">
+            {feedback.type === 'success' ? '✓' : '⚠'}
+          </span>
+          <span>{feedback.message}</span>
+        </div>
+      )}
 
-      {/* Open in Google Maps Button */}
-      <button
-        onClick={handleOpenMaps}
-        disabled={!road}
-        title="Open route in Google Maps"
-        className={`
-          flex-1 px-4 py-2.5 rounded-md font-medium text-sm
-          flex items-center justify-center gap-2
-          transition-all duration-200
-          ${!road
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-secondary text-white hover:bg-secondary/90 active:bg-secondary/80 cursor-pointer'
-          }
-        `}
-      >
-        <span className="text-base">🗺️</span>
-        <span>Google Maps</span>
-      </button>
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        {/* Export GPX Button */}
+        <button
+          onClick={handleExportGPX}
+          disabled={!road || isExportingGPX}
+          title="Download GPX file for GPS devices"
+          className={`
+            flex-1 px-4 py-2.5 rounded-md font-medium text-sm
+            flex items-center justify-center gap-2
+            transition-all duration-200
+            ${!road || isExportingGPX
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 cursor-pointer'
+            }
+          `}
+        >
+          {isExportingGPX ? (
+            <>
+              <span className="animate-spin text-base">⏳</span>
+              <span>Exporting...</span>
+            </>
+          ) : (
+            <>
+              <span className="text-base">📥</span>
+              <span>Export GPX</span>
+            </>
+          )}
+        </button>
+
+        {/* Open in Google Maps Button */}
+        <button
+          onClick={handleOpenMaps}
+          disabled={!road || isOpeningMaps}
+          title="Open route in Google Maps"
+          className={`
+            flex-1 px-4 py-2.5 rounded-md font-medium text-sm
+            flex items-center justify-center gap-2
+            transition-all duration-200
+            ${!road || isOpeningMaps
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-secondary text-white hover:bg-secondary/90 active:bg-secondary/80 cursor-pointer'
+            }
+          `}
+        >
+          {isOpeningMaps ? (
+            <>
+              <span className="animate-spin text-base">⏳</span>
+              <span>Opening...</span>
+            </>
+          ) : (
+            <>
+              <span className="text-base">🗺️</span>
+              <span>Google Maps</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };
