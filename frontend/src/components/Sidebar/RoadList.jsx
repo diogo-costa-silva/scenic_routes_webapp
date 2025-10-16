@@ -19,30 +19,19 @@ import RoadListItem from './RoadListItem';
  * @param {string} props.searchQuery - Search query to filter roads by code or name
  */
 const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, searchQuery = '' }) => {
-  const { roads, loading, error, refetch, groupedRoads, isEmpty } = useRoads({
-    region: filterRegion
+  const {
+    filteredRoads,
+    loading,
+    error,
+    refetch,
+    groupedRoads,
+    isEmpty,
+    isFiltered,
+    resultsCount
+  } = useRoads({
+    region: filterRegion,
+    searchQuery: searchQuery
   });
-
-  // Filter roads based on search query (case-insensitive)
-  const filteredRoads = roads.filter(road => {
-    if (!searchQuery.trim()) return true;
-
-    const query = searchQuery.toLowerCase();
-    const codeMatch = road.code.toLowerCase().includes(query);
-    const nameMatch = road.name.toLowerCase().includes(query);
-
-    return codeMatch || nameMatch;
-  });
-
-  // Group filtered roads by region
-  const filteredGroupedRoads = filteredRoads.reduce((acc, road) => {
-    const region = road.region || 'Other';
-    if (!acc[region]) {
-      acc[region] = [];
-    }
-    acc[region].push(road);
-    return acc;
-  }, {});
 
   // Loading skeleton
   if (loading) {
@@ -121,29 +110,59 @@ const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, se
     );
   }
 
-  // Empty state (no error, but no data)
+  // Empty state (no error, but no data in database)
   if (isEmpty) {
     return (
       <div className="p-6 text-center">
         <div className="text-5xl mb-3">🗺️</div>
         <h3 className="font-semibold text-gray-800 mb-2">No Roads Available</h3>
         <p className="text-sm text-gray-600">
-          {filterRegion
-            ? `No roads found in ${filterRegion}.`
-            : 'Start by adding roads using the Python scripts.'}
+          Start by adding roads using the Python scripts.
         </p>
       </div>
     );
   }
 
-  // No search results
-  if (searchQuery.trim() && filteredRoads.length === 0) {
+  // No results after filtering (search + region)
+  if (isFiltered && resultsCount === 0) {
+    const hasSearch = searchQuery.trim().length > 0;
+    const hasRegion = filterRegion !== null;
+
+    // Region icon mapping
+    const regionIcons = {
+      Continental: '🏔️',
+      Madeira: '🏝️',
+      Açores: '🌋'
+    };
+
+    let icon = '🔍';
+    let title = 'No Results Found';
+    let message = '';
+
+    if (hasSearch && hasRegion) {
+      // Both search and region filter active
+      icon = regionIcons[filterRegion] || '🔍';
+      title = 'No Matching Roads';
+      message = `No roads in ${filterRegion} matching "${searchQuery}".`;
+    } else if (hasSearch) {
+      // Only search active
+      icon = '🔍';
+      title = 'No Matching Roads';
+      message = `No roads found for "${searchQuery}". Try a different search term.`;
+    } else if (hasRegion) {
+      // Only region filter active
+      icon = regionIcons[filterRegion] || '📍';
+      title = `No Roads in ${filterRegion}`;
+      message = `No roads available in ${filterRegion} yet.`;
+    }
+
     return (
       <div className="p-6 text-center">
-        <div className="text-5xl mb-3">🔍</div>
-        <h3 className="font-semibold text-gray-800 mb-2">No Results Found</h3>
-        <p className="text-sm text-gray-600">
-          No roads match "{searchQuery}". Try a different search term.
+        <div className="text-5xl mb-3">{icon}</div>
+        <h3 className="font-semibold text-gray-800 mb-2">{title}</h3>
+        <p className="text-sm text-gray-600 mb-4">{message}</p>
+        <p className="text-xs text-gray-500">
+          Try adjusting your filters or search terms.
         </p>
       </div>
     );
@@ -151,22 +170,22 @@ const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, se
 
   // Region order for consistent display
   const regionOrder = ['Continental', 'Madeira', 'Açores'];
-  const regionsToDisplay = regionOrder.filter(region => filteredGroupedRoads[region]?.length > 0);
+  const regionsToDisplay = regionOrder.filter(region => groupedRoads[region]?.length > 0);
 
   return (
     <div className="overflow-y-auto h-full">
       {/* Total count */}
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
         <p className="text-sm text-gray-600">
-          <span className="font-semibold text-gray-800">{filteredRoads.length}</span>
-          {searchQuery.trim() ? ' results' : ' roads available'}
+          <span className="font-semibold text-gray-800">{resultsCount}</span>
+          {isFiltered ? ' result' + (resultsCount !== 1 ? 's' : '') : ' roads available'}
         </p>
       </div>
 
       {/* Roads grouped by region */}
       <div>
         {regionsToDisplay.map((region) => {
-          const regionRoads = filteredGroupedRoads[region];
+          const regionRoads = groupedRoads[region];
           const regionColorMap = {
             Continental: 'text-region-continental',
             Madeira: 'text-region-madeira',

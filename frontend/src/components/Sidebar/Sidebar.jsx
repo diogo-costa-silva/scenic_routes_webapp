@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import RoadList from './RoadList';
+import SearchBox from './SearchBox';
+import RegionFilter from './RegionFilter';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 /**
  * Sidebar Component
@@ -21,16 +24,11 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRegion, setFilterRegion] = useState(null);
 
+  // Debounce search query (300ms delay)
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
+
   const toggleSidebar = () => {
     setIsOpen(!isOpen);
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
-
-  const handleRegionFilter = (region) => {
-    setFilterRegion(region === filterRegion ? null : region);
   };
 
   return (
@@ -108,54 +106,18 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
           </div>
 
           {/* Search box */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search roads..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="w-full px-3 py-2 pl-9 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+          <SearchBox
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search roads (e.g., N222)..."
+          />
+
+          {/* Region filter */}
+          <div className="mt-3">
+            <RegionFilter
+              selectedRegion={filterRegion}
+              onRegionChange={setFilterRegion}
             />
-            <svg
-              className="absolute left-3 top-2.5 w-4 h-4 text-gray-400"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-
-          {/* Region filter buttons */}
-          <div className="flex gap-2 mt-3">
-            {['Continental', 'Madeira', 'Açores'].map((region) => {
-              const isActive = filterRegion === region;
-              const colorMap = {
-                Continental: 'bg-region-continental hover:bg-blue-600',
-                Madeira: 'bg-region-madeira hover:bg-orange-600',
-                Açores: 'bg-region-acores hover:bg-purple-600'
-              };
-
-              return (
-                <button
-                  key={region}
-                  onClick={() => handleRegionFilter(region)}
-                  className={`
-                    flex-1 px-2 py-1 text-xs font-medium rounded-md transition-all
-                    ${isActive
-                      ? `${colorMap[region]} text-white`
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }
-                  `}
-                  aria-pressed={isActive}
-                >
-                  {region}
-                </button>
-              );
-            })}
           </div>
         </div>
 
@@ -171,7 +133,7 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
               }
             }}
             filterRegion={filterRegion}
-            searchQuery={searchQuery}
+            searchQuery={debouncedSearchQuery}
           />
         </div>
       </aside>

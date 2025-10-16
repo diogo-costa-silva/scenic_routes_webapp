@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchRoads, fetchRoadsByRegion } from '../services/api';
 
 /**
@@ -6,11 +6,12 @@ import { fetchRoads, fetchRoadsByRegion } from '../services/api';
  *
  * @param {Object} options - Hook options
  * @param {string|null} options.region - Filter by region ('Continental', 'Madeira', 'Açores', or null for all)
+ * @param {string} options.searchQuery - Search query to filter roads (client-side)
  * @param {boolean} options.fetchOnMount - Whether to fetch data on component mount (default: true)
  *
- * @returns {Object} - { roads, loading, error, refetch, groupedRoads }
+ * @returns {Object} - { roads, filteredRoads, loading, error, refetch, groupedRoads }
  */
-const useRoads = ({ region = null, fetchOnMount = true } = {}) => {
+const useRoads = ({ region = null, searchQuery = '', fetchOnMount = true } = {}) => {
   const [roads, setRoads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -78,25 +79,56 @@ const useRoads = ({ region = null, fetchOnMount = true } = {}) => {
   }, [fetchData, fetchOnMount]);
 
   /**
-   * Group roads by region for easier rendering
-   * Returns: { Continental: [...], Madeira: [...], Açores: [...] }
+   * Filter roads client-side based on search query
+   * Uses useMemo to avoid re-filtering on every render
    */
-  const groupedRoads = roads.reduce((acc, road) => {
-    const region = road.region || 'Other';
-    if (!acc[region]) {
-      acc[region] = [];
+  const filteredRoads = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return roads;
     }
-    acc[region].push(road);
-    return acc;
-  }, {});
+
+    const query = searchQuery.toLowerCase().trim();
+
+    return roads.filter(road => {
+      // Match against code (e.g., "N222")
+      const codeMatch = road.code?.toLowerCase().includes(query);
+
+      // Match against name (e.g., "Peso da Régua")
+      const nameMatch = road.name?.toLowerCase().includes(query);
+
+      // Match against region
+      const regionMatch = road.region?.toLowerCase().includes(query);
+
+      return codeMatch || nameMatch || regionMatch;
+    });
+  }, [roads, searchQuery]);
+
+  /**
+   * Group filtered roads by region for easier rendering
+   * Returns: { Continental: [...], Madeira: [...], Açores: [...] }
+   * Uses useMemo to optimize grouping
+   */
+  const groupedRoads = useMemo(() => {
+    return filteredRoads.reduce((acc, road) => {
+      const region = road.region || 'Other';
+      if (!acc[region]) {
+        acc[region] = [];
+      }
+      acc[region].push(road);
+      return acc;
+    }, {});
+  }, [filteredRoads]);
 
   return {
-    roads,
+    roads, // All roads (unfiltered)
+    filteredRoads, // Filtered by search
     loading,
     error,
     refetch,
-    groupedRoads,
-    isEmpty: roads.length === 0 && !loading && !error
+    groupedRoads, // Filtered + grouped
+    isEmpty: roads.length === 0 && !loading && !error,
+    isFiltered: searchQuery.trim().length > 0 || region !== null,
+    resultsCount: filteredRoads.length
   };
 };
 
