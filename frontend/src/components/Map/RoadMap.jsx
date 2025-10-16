@@ -2,6 +2,8 @@ import { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import mapboxgl from 'mapbox-gl';
 import { wktToGeoJSON, validateRoadCoordinates } from '../../utils/geoUtils';
+import Loader from '../UI/Loader';
+import ErrorMessage from '../UI/ErrorMessage';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const PORTUGAL_CENTER = [-8.0, 39.5];
@@ -408,41 +410,38 @@ const RoadMap = ({
 
       {!mapLoaded && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading map...</p>
-            <p className="text-xs text-gray-500 mt-2">Connecting to Mapbox API</p>
-          </div>
+          <Loader
+            variant="spinner"
+            size="lg"
+            text="Loading map..."
+          />
         </div>
       )}
 
       {error && errorInfo && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-50 p-6 overflow-auto">
-          <div className="text-center max-w-2xl">
-            <div className="text-5xl mb-4">🗺️❌</div>
-            <h2 className="text-danger font-bold text-xl mb-2">{errorInfo.title}</h2>
-            <p className="text-gray-700 mb-4">{errorInfo.message}</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-50 p-6 overflow-auto">
+          <div className="max-w-2xl w-full">
+            <ErrorMessage
+              title={errorInfo.title}
+              message={errorInfo.message}
+              onRetry={handleRetry}
+              variant="error"
+              icon="🗺️❌"
+            />
 
-            <div className="bg-white rounded-lg p-4 mb-4 text-left">
+            <div className="bg-white rounded-lg p-4 mt-4 text-left">
               <p className="font-semibold text-sm text-gray-800 mb-2">💡 Possible solutions:</p>
               <ul className="text-sm text-gray-700 space-y-1">
                 {errorInfo.suggestions.map((suggestion, idx) => (
                   <li key={idx} className="flex items-start">
-                    <span className="text-accent mr-2">•</span>
+                    <span className="text-accent mr-2" aria-hidden="true">•</span>
                     <span>{suggestion}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            <button
-              onClick={handleRetry}
-              className="bg-primary hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-            >
-              🔄 Try Again
-            </button>
-
-            <p className="text-xs text-gray-500 mt-4">
+            <p className="text-xs text-gray-500 mt-4 text-center">
               Check the browser console (F12) for detailed error messages
             </p>
           </div>
