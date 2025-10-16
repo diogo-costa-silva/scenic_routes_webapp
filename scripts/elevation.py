@@ -29,7 +29,7 @@ MAPBOX_TILEQUERY_URL = "https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tileq
 
 # Rate limiting (Mapbox free tier: 100,000 requests/month)
 RATE_LIMIT_DELAY = 0.05  # 50ms delay = max 20 requests/second
-SAMPLE_INTERVAL = 10  # Sample every Nth point to reduce API calls
+SAMPLE_INTERVAL = 50  # Sample every Nth point to reduce API calls (increased for long roads)
 
 
 # ==============================================================================
