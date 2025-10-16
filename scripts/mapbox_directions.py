@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 ==============================================================================
-Mapbox Directions API Module
+Mapbox Directions API Module (Layer 4)
 ==============================================================================
 Module: mapbox_directions.py
-Purpose: Generate route geometries using Mapbox Directions API
+Purpose: Generate route geometries using Mapbox Directions API with auto-waypoints
 
 IMPORTANT NOTES:
 - Directions API generates OPTIMIZED ROUTES (shortest/fastest)
@@ -17,6 +17,11 @@ Use Cases:
 - Routes between waypoints where we need detailed geometry
 - Cases where we trust the routing algorithm
 
+Layer 4 Integration:
+- Auto-generates waypoints from town names using Nominatim
+- Calls Directions API to get complete route
+- Used as last resort when OSM/Map Matching fail
+
 NOT recommended for:
 - Roads where precise geometry is critical
 - Cases where you have actual GPS traces (use Map Matching instead)
@@ -26,6 +31,10 @@ NOT recommended for:
 import requests
 from typing import List, Tuple, Optional
 import time
+from geopy.distance import geodesic
+
+# Import our waypoint generator
+from waypoint_generator import generate_waypoints_for_road
 
 
 def mapbox_directions(
@@ -182,6 +191,97 @@ def directions_with_multiple_waypoints(
     print(f"\n🔗 Merged {num_batches} batches into {len(merged_route)} points")
 
     return merged_route
+
+
+def get_road_geometry_with_auto_waypoints(
+    road_code: str,
+    start_town: str,
+    end_town: str,
+    expected_distance_km: float,
+    mapbox_token: str,
+    intermediate_towns: Optional[List[str]] = None
+) -> Optional[List[Tuple[float, float]]]:
+    """
+    Get complete road geometry using auto-generated waypoints + Directions API (Layer 4).
+
+    This is the high-level function that integrates:
+    1. Waypoint generation (from town names via Nominatim)
+    2. Mapbox Directions API (routing between waypoints)
+
+    Used as Layer 4 fallback when OSM/Map Matching fail.
+
+    Args:
+        road_code: Road code (e.g., "N103")
+        start_town: Starting town name (e.g., "Viana do Castelo")
+        end_town: Ending town name (e.g., "Bragança")
+        expected_distance_km: Expected road distance
+        mapbox_token: Mapbox API token
+        intermediate_towns: Optional list of intermediate towns
+
+    Returns:
+        List of (lon, lat) coordinates if successful, None otherwise
+
+    Example:
+        >>> coords = get_road_geometry_with_auto_waypoints(
+        ...     "N103",
+        ...     "Viana do Castelo",
+        ...     "Bragança",
+        ...     274.0,
+        ...     "pk.xxx",
+        ...     ["Ponte de Lima", "Chaves"]
+        ... )
+        >>> len(coords)
+        2431
+    """
+
+    print(f"\n📍 Layer 4: Auto-waypoints + Directions API")
+
+    # Step 1: Generate waypoints from town names
+    print(f"   🌍 Generating waypoints from town names...")
+
+    waypoints = generate_waypoints_for_road(
+        road_code=road_code,
+        start_town=start_town,
+        end_town=end_town,
+        expected_distance_km=expected_distance_km,
+        intermediate_towns=intermediate_towns
+    )
+
+    if not waypoints or len(waypoints) < 2:
+        print(f"   ❌ Failed to generate waypoints")
+        return None
+
+    print(f"   ✅ Generated {len(waypoints)} waypoints")
+
+    # Step 2: Fetch route from Directions API
+    # Note: waypoints are (lat, lon), need to convert to (lon, lat) for Directions API
+    waypoints_lonlat = [(wp[1], wp[0]) for wp in waypoints]
+
+    print(f"   🗺️  Fetching route from Directions API...")
+    coordinates = directions_with_multiple_waypoints(waypoints_lonlat, mapbox_token)
+
+    if not coordinates:
+        print(f"   ❌ Directions API failed")
+        return None
+
+    # Calculate distance for validation
+    distance_km = 0.0
+    for i in range(len(coordinates) - 1):
+        point1 = (coordinates[i][1], coordinates[i][0])  # (lat, lon)
+        point2 = (coordinates[i + 1][1], coordinates[i + 1][0])
+        distance_km += geodesic(point1, point2).kilometers
+
+    print(f"   📏 Route distance: {distance_km:.2f}km (expected: {expected_distance_km:.2f}km)")
+
+    # Distance validation
+    distance_diff_pct = abs(distance_km - expected_distance_km) / expected_distance_km
+    if distance_diff_pct > 0.20:  # 20% tolerance
+        print(f"   ⚠️  Warning: Distance differs {distance_diff_pct*100:.1f}% from expected")
+
+    density = len(coordinates) / distance_km if distance_km > 0 else 0
+    print(f"   📊 Density: {density:.2f} pts/km")
+
+    return coordinates
 
 
 # ==============================================================================
