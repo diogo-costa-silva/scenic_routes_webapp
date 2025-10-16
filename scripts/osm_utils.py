@@ -73,8 +73,23 @@ def _load_cache(road_ref: str) -> Optional[List[Tuple[float, float]]]:
     try:
         with open(cache_file, 'r') as f:
             data = json.load(f)
-            print(f"   💾 Loaded from cache ({len(data)} points, {int(age_days)}d old)")
-            return [tuple(coord) for coord in data]
+
+            # FIX: Validate cache structure (handle both list and dict formats)
+            if isinstance(data, list):
+                # Standard format - list of [lon, lat] pairs
+                coords = [tuple(coord) for coord in data]
+            elif isinstance(data, dict):
+                # Dict format with metadata (future-proof)
+                coords = [tuple(coord) for coord in data.get('coordinates', [])]
+                if not coords:
+                    print(f"   ⚠️  Invalid cache format (empty coordinates), re-fetching...")
+                    return None
+            else:
+                print(f"   ⚠️  Invalid cache format (type: {type(data)}), re-fetching...")
+                return None
+
+            print(f"   💾 Loaded from cache ({len(coords)} points, {int(age_days)}d old)")
+            return coords
     except Exception as e:
         print(f"   ⚠️  Cache read error: {e}")
         return None
@@ -211,6 +226,69 @@ def _fetch_segmented(road_ref: str, bbox: Tuple[float, float, float, float]) -> 
 
 
 # ==============================================================================
+# OSM Relations Query (Layer 1 - Highest Priority)
+# ==============================================================================
+
+def fetch_route_relation(road_ref: str, bbox: Tuple[float, float, float, float]) -> Optional[List[Tuple[float, float]]]:
+    """
+    Fetch complete road geometry from OSM relation (Layer 1 - Most Reliable).
+
+    Many national roads in OSM are stored as relations with type="route",
+    which group ALL ways of the road into a single entity. This is FAR more
+    reliable than bbox queries for long roads.
+
+    Query strategy:
+        1. Query for relation with ref tag and type="route"
+        2. Use (._;>;) to recursively get all members (ways and nodes)
+        3. Use 'out geom;' to get complete geometry
+
+    Args:
+        road_ref: Road reference (e.g., "EN 222", "N 103")
+        bbox: Bounding box for filtering (south, west, north, east)
+
+    Returns:
+        List of coordinates if relation found and valid, None otherwise
+
+    Example OSM relation: EN 222 (https://www.openstreetmap.org/relation/...)
+    """
+
+    print(f"   🔍 Layer 1: Trying OSM route relation...")
+
+    # Query for route relation with all members
+    overpass_query = f"""
+    [out:json][timeout:90];
+    (
+      relation["ref"="{road_ref}"]["type"="route"]({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]});
+    );
+    (._;>;);
+    out geom;
+    """
+
+    try:
+        time.sleep(RATE_LIMIT_DELAY)
+        data = query_overpass_api(overpass_query)
+
+        coordinates = extract_coordinates_from_response(data, bbox)
+
+        if coordinates and len(coordinates) >= 100:
+            print(f"   ✅ Layer 1 SUCCESS: Route relation found ({len(coordinates)} points)")
+            return coordinates
+        elif coordinates:
+            print(f"   ⚠️  Layer 1: Found relation but only {len(coordinates)} points (< 100 minimum)")
+            return None
+        else:
+            print(f"   ℹ️  Layer 1: No route relation found")
+            return None
+
+    except requests.Timeout:
+        print(f"   ⚠️  Layer 1: Timeout (relation query too complex)")
+        return None
+    except Exception as e:
+        print(f"   ⚠️  Layer 1 error: {e}")
+        return None
+
+
+# ==============================================================================
 # Main Functions
 # ==============================================================================
 
@@ -267,6 +345,22 @@ def get_road_from_osm(road_ref: str, bbox: Optional[Tuple[float, float, float, f
     cached = _load_cache(road_ref)
     if cached:
         return cached
+
+    # STEP 2: Try OSM Route Relation (Layer 1 - MOST RELIABLE)
+    # Many national roads are stored as relations in OSM which contain ALL segments
+    relation_coords = fetch_route_relation(road_ref, bbox)
+    if relation_coords:
+        _save_cache(road_ref, relation_coords)
+        return relation_coords
+
+    # Try alternative ref formats for relation query
+    alternatives = _generate_ref_alternatives(road_ref)
+    for alt_ref in alternatives[1:]:  # Skip first (already tried)
+        print(f"   🔄 Layer 1: Trying alternative format: {alt_ref}")
+        relation_coords = fetch_route_relation(alt_ref, bbox)
+        if relation_coords:
+            _save_cache(road_ref, relation_coords)  # Cache under original ref
+            return relation_coords
 
     # Build Overpass QL query with bounding box
     # Portuguese roads typically use "name" tag rather than "ref"
