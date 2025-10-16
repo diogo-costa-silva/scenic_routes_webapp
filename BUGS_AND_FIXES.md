@@ -10,12 +10,12 @@ This document serves as the central registry for tracking all bugs, issues, and 
 
 | Status | Count |
 |--------|-------|
-| 🟢 Fixed | 5 |
+| 🟢 Fixed | 11 |
 | 🟡 In Progress | 0 |
-| 🔴 Open | 0 |
-| **Total** | **5** |
+| 🔴 Open | 2 |
+| **Total** | **13** |
 
-**Last Updated:** October 15, 2025
+**Last Updated:** October 16, 2025
 
 ---
 
@@ -557,6 +557,629 @@ Same as Bug #004 - use waypoints + Directions API strategy for roads with fragme
 2. **Waypoints strategy scales well** - Same solution works for roads of different lengths (N2: 739km, N247: 57km)
 3. **High point density from Directions API** - 50.81 pts/km far exceeds minimum requirements
 4. **Fast processing for shorter roads** - 106s for N247 vs 422s for N2 (proportional to distance)
+
+---
+
+## 🐛 Bug #006: Generic PropTypes Validation
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical
+**Component:** Frontend (ActionButtons.jsx)
+**Found By:** Code Review (code-reviewer agent)
+
+### Problem
+ActionButtons component used `PropTypes.object` for road prop, providing **zero type safety**. Invalid props could pass validation silently, leading to runtime errors.
+
+**Example:**
+```javascript
+ActionButtons.propTypes = {
+  road: PropTypes.object  // Too generic! ❌
+};
+```
+
+**Why this is critical:**
+- Any object passes validation, even `{foo: "bar"}`
+- Missing required fields like `code` or `geometry` not detected
+- Runtime errors when accessing undefined properties
+- No IDE autocompletion or type hints
+
+### Root Cause
+Initial implementation used generic `PropTypes.object` as quick solution, without defining proper shape validation. This is a common anti-pattern in React development.
+
+### Solution Implemented
+Implemented detailed `PropTypes.shape()` validation with all required and optional fields:
+
+```javascript
+ActionButtons.propTypes = {
+  road: PropTypes.shape({
+    id: PropTypes.number.isRequired,
+    code: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    geometry: PropTypes.oneOfType([
+      PropTypes.string,  // WKT format from PostGIS
+      PropTypes.object   // GeoJSON format
+    ]).isRequired,
+    start_lat: PropTypes.number,
+    start_lon: PropTypes.number,
+    distance_km: PropTypes.number,
+    curve_count_total: PropTypes.number,
+    surface: PropTypes.string,
+    elevations: PropTypes.arrayOf(PropTypes.number),
+  }),
+};
+```
+
+**Improvements:**
+- ✅ All required fields marked with `.isRequired`
+- ✅ Geometry accepts both WKT string and GeoJSON object
+- ✅ Optional fields explicitly defined
+- ✅ Proper type checking for each field
+- ✅ Better developer experience with IDE hints
+
+### Files Changed
+- ✅ `/frontend/src/components/Details/ActionButtons.jsx` (lines 162-175)
+
+### Prevention Measures
+1. **ESLint Rule:** Add `react/forbid-prop-types` to catch generic object/array props
+2. **Code Review Checklist:** Verify PropTypes are specific, not generic
+3. **TypeScript Migration (Future):** Consider migrating to TypeScript for compile-time type safety
+4. **PropTypes Template:** Create reusable PropTypes shapes for common objects (road, marker, etc.)
+
+### Testing
+- ✅ Verified PropTypes validation catches invalid props
+- ✅ IDE autocomplete now works correctly
+- ✅ No console warnings with valid road objects
+- ✅ Console warnings appear with invalid/missing fields
+
+### Documentation
+- Code comments explain WKT vs GeoJSON geometry formats
+- PropTypes serve as inline documentation for component API
+
+### Lessons Learned
+1. **Generic PropTypes defeat the purpose** - Always define specific shapes
+2. **PropTypes are self-documenting** - Clear shapes help other developers
+3. **Early validation prevents runtime errors** - Catch issues in development, not production
+4. **oneOfType is powerful** - Handles multiple valid formats elegantly
+
+---
+
+## 🐛 Bug #007: Memory Leak from Timeout Cleanup
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical
+**Component:** Frontend (ActionButtons.jsx)
+**Found By:** Code Review (code-reviewer agent)
+
+### Problem
+ActionButtons component set timeouts for feedback messages but did NOT clean them up on component unmount. This caused:
+- **Memory leaks** - Timeouts continue after component unmounts
+- **setState warnings** - "Can't perform a React state update on an unmounted component"
+- **Unpredictable behavior** - Stale closures executing after unmount
+
+**Problematic Code:**
+```javascript
+const showFeedback = (type, message) => {
+  setFeedback({ type, message });
+  setTimeout(() => {
+    setFeedback(null);  // ❌ Runs even if component unmounts!
+  }, 3000);
+};
+```
+
+### Root Cause
+1. **No refs for timeout IDs** - Timeouts created but not stored
+2. **No cleanup on unmount** - Missing cleanup in useEffect return
+3. **Multiple timeouts** - Both feedback and loading timeouts affected
+
+### Solution Implemented
+Added proper timeout cleanup with refs and useEffect:
+
+```javascript
+// 1. Create refs for timeout IDs
+const feedbackTimeoutRef = useRef(null);
+const loadingTimeoutRef = useRef(null);
+
+// 2. Clear previous timeout before setting new one
+const showFeedback = (type, message) => {
+  setFeedback({ type, message });
+
+  if (feedbackTimeoutRef.current) {
+    clearTimeout(feedbackTimeoutRef.current);
+  }
+
+  feedbackTimeoutRef.current = setTimeout(() => {
+    setFeedback(null);
+    feedbackTimeoutRef.current = null;
+  }, 3000);
+};
+
+// 3. Cleanup on unmount
+useEffect(() => {
+  return () => {
+    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+  };
+}, []);
+```
+
+**Improvements:**
+- ✅ Timeouts stored in refs (persist across renders)
+- ✅ Clear previous timeout before setting new one (prevents overlapping)
+- ✅ Cleanup on unmount (prevents memory leaks)
+- ✅ No setState on unmounted component warnings
+
+### Files Changed
+- ✅ `/frontend/src/components/Details/ActionButtons.jsx` (lines 14-15, 21-33, 116-122)
+
+### Prevention Measures
+1. **ESLint Rule:** Enable `react-hooks/exhaustive-deps` to catch missing cleanup
+2. **Code Review Checklist:** Verify all timeouts/intervals have cleanup
+3. **useTimeout Hook (Future):** Create reusable hook that handles cleanup automatically
+4. **Documentation:** Add comment explaining why refs are needed for timeouts
+
+### Testing
+- ✅ No console warnings when component unmounts
+- ✅ Feedback messages clear correctly
+- ✅ No memory leaks detected
+- ✅ Multiple rapid button clicks handled correctly (timeouts reset)
+
+### Documentation
+- Code comments explain ref usage for timeout cleanup
+- ESLint warnings would catch similar issues in other components
+
+### Lessons Learned
+1. **Always cleanup side effects** - Timeouts, intervals, subscriptions must be cleared
+2. **Use refs for timeout IDs** - State doesn't persist correctly for cleanup
+3. **Clear previous before setting new** - Prevents accumulation of pending timeouts
+4. **Test component unmount** - Critical for catching memory leaks early
+
+---
+
+## 🐛 Bug #008: ESLint Error - Unused Variable (filteredRoads)
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical (Code Quality)
+**Component:** Frontend (RoadList.jsx)
+**Found By:** ESLint
+
+### Problem
+RoadList component destructured `filteredRoads` from useRoads hook but never used it, causing ESLint error:
+
+```
+'filteredRoads' is assigned a value but never used  no-unused-vars
+```
+
+### Root Cause
+Component was refactored to use `groupedRoads` instead of `filteredRoads`, but the unused destructuring wasn't removed.
+
+### Solution Implemented
+Removed `filteredRoads` from destructuring statement:
+
+```javascript
+// Before:
+const { loading, error, refetch, filteredRoads, groupedRoads, ... } = useRoads({...});
+
+// After:
+const { loading, error, refetch, groupedRoads, ... } = useRoads({...});
+```
+
+### Files Changed
+- ✅ `/frontend/src/components/Sidebar/RoadList.jsx`
+
+### Testing
+- ✅ `npm run lint` passes with no errors
+- ✅ Component functionality unchanged
+
+---
+
+## 🐛 Bug #009: ESLint Error - Unnecessary Regex Escape
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical (Code Quality)
+**Component:** Frontend (gpxExport.js)
+**Found By:** ESLint
+
+### Problem
+Unnecessary escape sequence in regex character class:
+
+```javascript
+const filename = `${road.code.replace(/[\/\\:*?"<>|]/g, '-')}.gpx`;
+//                                            ↑ Unnecessary escape
+```
+
+**ESLint Error:**
+```
+Unnecessary escape character: \/  no-useless-escape
+```
+
+### Root Cause
+Forward slash `/` does not need escaping inside character class `[...]` in JavaScript regex.
+
+### Solution Implemented
+Removed unnecessary backslash:
+
+```javascript
+const filename = `${road.code.replace(/[/\\:*?"<>|]/g, '-')}.gpx`;
+```
+
+### Files Changed
+- ✅ `/frontend/src/utils/gpxExport.js` (line 219)
+
+### Testing
+- ✅ `npm run lint` passes
+- ✅ Filename sanitization still works correctly
+
+---
+
+## 🐛 Bug #010: ESLint Error - Unused Catch Parameter
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical (Code Quality)
+**Component:** Frontend (testConnection.js)
+**Found By:** ESLint
+
+### Problem
+Catch block defined error parameter `_error` but never used it:
+
+```javascript
+} catch (_error) {
+  // Error intentionally not used
+  console.warn('⚠️  Geometry conversion test skipped (no data)');
+}
+```
+
+**ESLint Error:**
+```
+'_error' is defined but never used  no-unused-vars
+```
+
+### Root Cause
+Parameter prefixed with underscore to indicate "intentionally unused", but ESLint still flagged it. Better to omit the parameter entirely in JavaScript.
+
+### Solution Implemented
+Removed error parameter from catch block:
+
+```javascript
+} catch {
+  // Test skipped if no data available
+  console.warn('⚠️  Geometry conversion test skipped (no data)');
+}
+```
+
+### Files Changed
+- ✅ `/frontend/src/utils/testConnection.js` (line 108)
+
+### Testing
+- ✅ `npm run lint` passes
+- ✅ Error handling unchanged
+
+---
+
+## 🐛 Bug #011: ESLint Error - Unused Variable (data)
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical (Code Quality)
+**Component:** Frontend (testConnection.js)
+**Found By:** ESLint
+
+### Problem
+`quickConnectionCheck` function destructured `data` from Supabase response but only used `error`:
+
+```javascript
+const { data, error } = await supabase.from('roads').select('count', {...});
+// 'data' never used
+```
+
+### Root Cause
+Function only needs to check if query succeeded (error is null), doesn't need the data itself.
+
+### Solution Implemented
+Removed `data` from destructuring:
+
+```javascript
+const { error } = await supabase.from('roads').select('count', {...});
+```
+
+### Files Changed
+- ✅ `/frontend/src/utils/testConnection.js` (line 163)
+
+### Testing
+- ✅ `npm run lint` passes
+- ✅ Connection check still works correctly
+
+---
+
+## 🐛 Bug #012: Missing Error Boundary Component
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical
+**Component:** Frontend (App Architecture)
+**Found By:** Code Review (code-reviewer agent)
+
+### Problem
+No React Error Boundary implemented. A single component error would crash the entire application with a white screen of death, providing zero user feedback.
+
+**Consequences:**
+- **Poor UX** - Users see blank white screen
+- **No error info** - No way to know what went wrong
+- **No recovery** - Users must manually refresh
+- **Lost context** - Users lose their place in the app
+
+### Root Cause
+Initial MVP implementation didn't include error boundary. This is a common oversight in React apps.
+
+### Solution Implemented
+Created comprehensive ErrorBoundary component (173 lines) with:
+
+**Features:**
+1. **Error Catching** - getDerivedStateFromError catches all rendering errors
+2. **Error Logging** - componentDidCatch logs to console (can integrate with error service)
+3. **Graceful Fallback UI** - Beautiful error screen instead of white screen
+4. **Reload Functionality** - User can reload app with button click
+5. **Development Mode Details** - Shows error details and component stack in development
+6. **Production Ready** - Clean error message without exposing internals
+
+**Implementation:**
+```javascript
+// ErrorBoundary.jsx (Class Component)
+class ErrorBoundary extends Component {
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('🚨 Error caught by Error Boundary:', error);
+    console.error('📍 Component stack trace:', errorInfo.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <FallbackUI />;  // Beautiful error screen
+    }
+    return this.props.children;
+  }
+}
+
+// App.jsx - Wrapped entire app
+<ErrorBoundary>
+  <App />
+</ErrorBoundary>
+```
+
+### Files Created
+- ✅ `/frontend/src/components/ErrorBoundary.jsx` (173 lines)
+
+### Files Modified
+- ✅ `/frontend/src/App.jsx` - Wrapped app in ErrorBoundary
+
+### Prevention Measures
+1. **Error boundaries at multiple levels** - Consider boundaries around major sections
+2. **Error reporting service** - Integrate with Sentry/LogRocket in production
+3. **Component error tests** - Test error scenarios in component tests
+4. **PropTypes validation** - Prevents many runtime errors before they happen
+
+### Testing
+- ✅ Simulated component errors (throw new Error in render)
+- ✅ Error boundary catches and displays fallback UI
+- ✅ Reload button works correctly
+- ✅ Development mode shows error details
+- ✅ Production mode hides sensitive info
+
+### Documentation
+- Component has extensive JSDoc comments
+- Error boundary limitations documented (doesn't catch event handlers, async code)
+
+### Lessons Learned
+1. **Error boundaries are essential** - No production app should ship without them
+2. **Class components still needed** - Error boundaries must be class components
+3. **Fallback UI matters** - Users need helpful feedback, not blank screens
+4. **Error logging is crucial** - Need visibility into production errors
+
+---
+
+## 🐛 Bug #013: Debug Console.log Statements in Production
+
+**Status:** ✅ FIXED
+**Date Found:** October 16, 2025
+**Date Fixed:** October 16, 2025
+**Severity:** 🔴 Critical
+**Component:** Frontend (Multiple Components)
+**Found By:** Code Review (code-reviewer agent)
+
+### Problem
+Multiple debug `console.log` statements throughout the codebase:
+- **App.jsx** - "Road selected" log
+- **RoadMap.jsx** - 8 debug logs (initialization, markers, route drawing)
+
+**Why this is critical:**
+- **Performance** - Console logging has performance overhead
+- **Security** - May expose internal state/data in production
+- **User experience** - Console filled with development noise
+- **Best practices** - Production code should be clean
+
+### Root Cause
+Debug logs added during development but not removed before production readiness.
+
+### Solution Implemented
+Removed ALL debug `console.log` statements while keeping `console.error` and `console.warn` for debugging:
+
+**Removed from App.jsx:**
+- Line 11: "Road selected" log
+
+**Removed from RoadMap.jsx:**
+- Lines 48-51: Map initialization logs
+- Line 72: Map loaded success log
+- Line 206: No road selected log
+- Line 210: Drawing route log
+- Line 255: Route coordinates count log
+- Lines 298, 310: Marker added logs
+- Line 322: Map fitted bounds log
+- Line 332: Retry initialization log
+
+**Kept for production debugging:**
+- ✅ All `console.error()` statements
+- ✅ All `console.warn()` statements
+- ✅ Validation error logging
+
+### Files Changed
+- ✅ `/frontend/src/App.jsx` (line 11)
+- ✅ `/frontend/src/components/Map/RoadMap.jsx` (8 locations)
+
+### Prevention Measures
+1. **ESLint Rule** - Add `no-console` rule with `warn` level
+2. **Pre-commit Hook** - Block commits with console.log
+3. **Build Step** - Strip console.logs in production builds
+4. **Code Review** - Check for debug logs before merge
+
+### Testing
+- ✅ Console output clean (only errors/warnings)
+- ✅ All functionality unchanged
+- ✅ No visual difference in behavior
+
+### Documentation
+- CLAUDE.md updated with production-ready code standards
+
+### Lessons Learned
+1. **Remove debug logs before production** - Essential for clean codebase
+2. **Use proper logging library** - Consider using debug package or logging service
+3. **ESLint can prevent this** - Automated checks catch these issues
+4. **Code review is critical** - Human eyes catch what linters miss
+
+---
+
+## 🐛 Bug #014: Search Functionality Not Filtering Roads
+
+**Status:** 🔴 OPEN
+**Date Found:** October 16, 2025
+**Severity:** 🟡 Medium
+**Component:** Frontend (Sidebar/Search)
+**Found By:** Chrome DevTools MCP Testing
+
+### Problem
+Search input accepts text but does NOT filter the road list. When typing "N222":
+- **Expected:** Road list shows only N222
+- **Actual:** All 12 roads remain visible
+- **Results count:** Shows "12 roads available" instead of "1 result"
+
+**Impact:** Users cannot search for specific roads, significantly reducing usability.
+
+### Root Cause
+**Investigation Status:** In Progress
+
+**Code Review Findings:**
+- ✅ Sidebar.jsx correctly debounces search query (300ms delay)
+- ✅ Sidebar.jsx passes `debouncedSearchQuery` to RoadList
+- ✅ useRoads hook has correct filtering logic
+- ✅ useRoads returns `filteredRoads` and `groupedRoads`
+- ✅ RoadList receives `searchQuery` prop
+
+**Likely Causes:**
+1. SearchBox component not triggering onChange correctly
+2. useDebouncedValue hook timing issue
+3. Event propagation problem with controlled input
+
+**Files to Investigate:**
+- `/frontend/src/components/Sidebar/SearchBox.jsx` - Input onChange handler
+- `/frontend/src/hooks/useDebouncedValue.js` - Debounce implementation
+
+### Solution (Proposed)
+**Step 1:** Read SearchBox.jsx to verify onChange implementation
+**Step 2:** Add debug logging to trace state changes
+**Step 3:** Test with direct state update (bypass debounce)
+**Step 4:** Fix identified issue
+
+### Testing
+- ⏳ Manual testing in progress
+- ⏳ Need to verify controlled input with value + onChange
+- ⏳ Test debounce timing
+
+### Documentation
+- ⏳ To be updated after fix implemented
+
+### Lessons Learned
+- TBD after fix
+
+---
+
+## 🐛 Bug #015: aria-hidden Accessibility Warning
+
+**Status:** 🔴 OPEN
+**Date Found:** October 16, 2025
+**Severity:** 🟢 Low
+**Component:** Frontend (Sidebar)
+**Found By:** Chrome DevTools Console
+
+### Problem
+Browser accessibility warning:
+```
+Blocked aria-hidden on an element because its descendant retained focus.
+The focus must not be hidden from assistive technology users.
+```
+
+**Affected Elements:**
+- **Focused element:** Search input
+- **Ancestor with aria-hidden:** Sidebar nav
+
+**Impact:** Screen reader users may not be able to access focused input, violating WCAG AA accessibility standards.
+
+### Root Cause
+**Location:** `/frontend/src/components/Sidebar/Sidebar.jsx` line 96
+
+```javascript
+aria-hidden={!isOpen && 'md:hidden'}
+```
+
+**Problem:** Expression returns:
+- `false` when isOpen = true ✅
+- `'md:hidden'` (string) when isOpen = false ❌ (string is truthy!)
+
+The string `'md:hidden'` is treated as `true` by aria-hidden, hiding the sidebar from assistive technology even on desktop where it's visible.
+
+### Solution (Proposed)
+**Option 1: Fix Boolean Logic**
+```javascript
+aria-hidden={!isOpen} // Simple boolean
+```
+
+**Option 2: Use Inert Attribute (Better)**
+```javascript
+{...(!isOpen && { inert: '' })}
+```
+
+**Why inert is better:**
+- Prevents keyboard navigation into hidden content
+- Removes from accessibility tree
+- Blocks pointer events
+- Single attribute handles all concerns
+
+### Testing
+- ⏳ To be tested after fix
+
+### Prevention Measures
+1. Add ESLint rule to detect incorrect aria-hidden usage
+2. Use inert attribute instead of aria-hidden for hiding sections
+3. Add accessibility tests (aXe, Lighthouse)
+4. Run automated accessibility audits regularly
+
+### Documentation
+- ⏳ To be updated after fix
+
+### Lessons Learned
+- TBD after fix
 
 ---
 
