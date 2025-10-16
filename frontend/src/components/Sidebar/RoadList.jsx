@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import useRoads from '../../hooks/useRoads';
 import RoadListItem from './RoadListItem';
+import Loader from '../UI/Loader';
+import ErrorMessage from '../UI/ErrorMessage';
 
 /**
  * RoadList Component
@@ -36,18 +38,12 @@ const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, se
   // Loading skeleton
   if (loading) {
     return (
-      <div className="space-y-2 p-4">
-        <div className="text-sm text-gray-500 mb-4">Loading roads...</div>
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-            <div className="h-3 bg-gray-100 rounded w-2/3 mb-3"></div>
-            <div className="flex gap-2">
-              <div className="h-6 bg-gray-100 rounded w-16"></div>
-              <div className="h-6 bg-gray-100 rounded w-16"></div>
-            </div>
-          </div>
-        ))}
+      <div className="p-6">
+        <Loader
+          variant="skeleton"
+          size="md"
+          text="Loading roads..."
+        />
       </div>
     );
   }
@@ -83,29 +79,26 @@ const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, se
     const errorContent = getErrorContent();
 
     return (
-      <div className="p-6 text-center">
-        <div className="text-5xl mb-3">{errorContent.icon}</div>
-        <h3 className="font-semibold text-gray-800 mb-2">{errorContent.title}</h3>
-        <p className="text-sm text-gray-600 mb-4">{errorContent.message}</p>
+      <div className="p-6">
+        <ErrorMessage
+          title={errorContent.title}
+          message={errorContent.message}
+          onRetry={errorContent.showRetry ? refetch : null}
+          variant="error"
+          icon={errorContent.icon}
+        />
 
-        {errorContent.showRetry && (
-          <button
-            onClick={refetch}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
-          >
-            🔄 Try Again
-          </button>
+        {error.type === 'NO_DATA' && (
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg text-left">
+            <p className="text-xs text-gray-600 font-semibold mb-1">💡 Setup Checklist:</p>
+            <ul className="text-xs text-gray-600 space-y-1">
+              <li>✓ Supabase project created</li>
+              <li>✓ Schema applied (scripts/schema.sql)</li>
+              <li>✓ Test data loaded (scripts/test_data.sql)</li>
+              <li>✓ .env file configured with credentials</li>
+            </ul>
+          </div>
         )}
-
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg text-left">
-          <p className="text-xs text-gray-600 font-semibold mb-1">💡 Setup Checklist:</p>
-          <ul className="text-xs text-gray-600 space-y-1">
-            <li>✓ Supabase project created</li>
-            <li>✓ Schema applied (scripts/schema.sql)</li>
-            <li>✓ Test data loaded (scripts/test_data.sql)</li>
-            <li>✓ .env file configured with credentials</li>
-          </ul>
-        </div>
       </div>
     );
   }
