@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 import RoadMap from './components/Map/RoadMap';
 import Sidebar from './components/Sidebar/Sidebar';
 import RoadDetails from './components/Details/RoadDetails';
@@ -7,7 +8,6 @@ function App() {
   const [selectedRoad, setSelectedRoad] = useState(null);
 
   const handleRoadSelect = (road) => {
-    console.log('Road selected:', road);
     setSelectedRoad(road);
   };
 
@@ -24,7 +24,8 @@ function App() {
   }, [selectedRoad]);
 
   return (
-    <div className="w-full h-screen flex flex-col" lang="en">
+    <ErrorBoundary>
+      <div className="w-full h-screen flex flex-col" lang="en">
       {/* Skip to main content link for keyboard users */}
       <a
         href="#main-content"
@@ -72,7 +73,8 @@ function App() {
           onClose={() => setSelectedRoad(null)}
         />
       </main>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 
