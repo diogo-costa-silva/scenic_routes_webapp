@@ -287,12 +287,20 @@ def process_single_road(road_info: Dict, supabase: Client, skip_existing: bool =
                 print(f"   Add 'expected_distance_km' to road definition in roads_data.json")
                 return False
 
-            # Use hybrid strategy (OSM → Validate → Map Matching if needed)
+            # Extract town names for Layer 4 (auto-waypoints + Directions API)
+            start_town = road_info.get('start_point_name')
+            end_town = road_info.get('end_point_name')
+            intermediate_towns = road_info.get('intermediate_towns')  # Optional
+
+            # Use hybrid 4-layer strategy (OSM → Map Matching → Directions API)
             result = get_road_geometry_hybrid(
                 road_ref=osm_ref,
                 bbox=tuple(osm_bbox),
                 expected_distance_km=expected_distance_km,
-                mapbox_token=MAPBOX_TOKEN if MAPBOX_TOKEN else None
+                mapbox_token=MAPBOX_TOKEN if MAPBOX_TOKEN else None,
+                start_town=start_town,
+                end_town=end_town,
+                intermediate_towns=intermediate_towns
             )
 
         if not result:
@@ -302,7 +310,7 @@ def process_single_road(road_info: Dict, supabase: Client, skip_existing: bool =
 
         # Extract coordinates and metadata from result
         coordinates = result.coordinates
-        data_source = result.source  # 'osm_recursive' or 'mapbox_matching'
+        data_source = result.source  # 'osm_recursive', 'mapbox_matching', or 'mapbox_directions'
         distance_km = result.distance_km
 
         print(f"\n✅ Geometry acquired successfully:")
@@ -511,7 +519,7 @@ def main():
             road_start_time = time.time()
 
             try:
-                result = process_single_road(road_info, supabase, skip_existing=True)
+                result = process_single_road(road_info, supabase, skip_existing=False)
 
                 # Check if it was skipped or processed
                 code = road_info.get('code', 'UNKNOWN')
