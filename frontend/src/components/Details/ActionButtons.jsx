@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { generateGPX, downloadGPX } from '../../utils/gpxExport';
 import { generateRouteUrl, openInNewTab } from '../../utils/mapLinks';
@@ -25,6 +25,10 @@ const ActionButtons = ({ road }) => {
   const [isOpeningMaps, setIsOpeningMaps] = useState(false);
   const [feedback, setFeedback] = useState(null); // { type: 'success'|'error', message: string }
 
+  // Timeout refs for cleanup
+  const feedbackTimeoutRef = useRef(null);
+  const loadingTimeoutRef = useRef(null);
+
   /**
    * Show feedback message temporarily
    * @param {string} type - 'success' or 'error'
@@ -33,11 +37,25 @@ const ActionButtons = ({ road }) => {
   const showFeedback = (type, message) => {
     setFeedback({ type, message });
 
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
+    // Clear existing timeout if any
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+
+    // Auto-hide after 3 seconds with cleanup
+    feedbackTimeoutRef.current = setTimeout(() => {
       setFeedback(null);
+      feedbackTimeoutRef.current = null;
     }, 3000);
   };
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
+  }, []);
 
   /**
    * Export road geometry as GPX file
@@ -109,9 +127,15 @@ const ActionButtons = ({ road }) => {
       console.error('Error opening Google Maps:', error);
       showFeedback('error', 'An unexpected error occurred');
     } finally {
-      // Reset loading state after a short delay
-      setTimeout(() => {
+      // Clear existing timeout if any
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+
+      // Reset loading state after a short delay with cleanup
+      loadingTimeoutRef.current = setTimeout(() => {
         setIsOpeningMaps(false);
+        loadingTimeoutRef.current = null;
       }, 500);
     }
   };
@@ -202,7 +226,19 @@ const ActionButtons = ({ road }) => {
 };
 
 ActionButtons.propTypes = {
-  road: PropTypes.object,
+  road: PropTypes.shape({
+    id: PropTypes.number.isRequired,
+    code: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    geometry: PropTypes.oneOfType([
+      PropTypes.string,  // WKT format
+      PropTypes.object   // GeoJSON format
+    ]).isRequired,
+    start_lat: PropTypes.number,
+    start_lon: PropTypes.number,
+    distance_km: PropTypes.number,
+    curve_count_total: PropTypes.number,
+  }),
 };
 
 export default ActionButtons;
