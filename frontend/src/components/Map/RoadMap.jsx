@@ -45,11 +45,6 @@ const RoadMap = ({
       return;
     }
 
-    console.log('🗺️ Initializing Mapbox map...');
-    console.log('📍 Center:', initialCenter);
-    console.log('🔍 Zoom:', initialZoom);
-    console.log('🔑 Token present:', MAPBOX_TOKEN ? 'Yes (hidden)' : 'No');
-
     try {
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
@@ -69,7 +64,6 @@ const RoadMap = ({
 
       // Success handler
       map.current.on('load', () => {
-        console.log('✅ Map loaded successfully');
         clearTimeout(loadTimeoutRef.current);
         setMapLoaded(true);
         setError(null);
@@ -203,11 +197,8 @@ const RoadMap = ({
 
     // If no road selected, return early
     if (!selectedRoad) {
-      console.log('No road selected - map cleared');
       return;
     }
-
-    console.log('🎨 Drawing route for:', selectedRoad.code);
 
     // Validate coordinates are within Portugal
     const validationResult = validateRoadCoordinates(selectedRoad);
@@ -252,8 +243,6 @@ const RoadMap = ({
       return;
     }
 
-    console.log(`📍 Route has ${geojson.geometry.coordinates.length} coordinates`);
-
     try {
       // Add route source
       map.current.addSource('route', {
@@ -295,7 +284,6 @@ const RoadMap = ({
               .setHTML(`<strong>Start:</strong> ${selectedRoad.start_point_name || 'Unknown'}`)
           )
           .addTo(map.current);
-        console.log('✅ Start marker added');
       }
 
       // Add end marker (red)
@@ -307,7 +295,6 @@ const RoadMap = ({
               .setHTML(`<strong>End:</strong> ${selectedRoad.end_point_name || 'Unknown'}`)
           )
           .addTo(map.current);
-        console.log('✅ End marker added');
       }
 
       // Fit bounds to show complete route
@@ -319,7 +306,6 @@ const RoadMap = ({
         padding: 50,
         duration: 1500  // 1.5s smooth animation
       });
-      console.log('✅ Map fitted to route bounds');
 
     } catch (err) {
       console.error('Error visualizing route:', err);
@@ -329,7 +315,6 @@ const RoadMap = ({
   }, [selectedRoad, mapLoaded]);
 
   const handleRetry = () => {
-    console.log('🔄 Retrying map initialization...');
     initializeMap();
   };
 
