@@ -21,6 +21,8 @@ const RoadMap = ({
   const loadTimeoutRef = useRef(null);
   const startMarkerRef = useRef(null);
   const endMarkerRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const animationIdRef = useRef(0);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [error, setError] = useState(null);
 
@@ -100,6 +102,15 @@ const RoadMap = ({
   const cleanupRoute = () => {
     if (!map.current) return;
 
+    // Invalidate all pending animations by incrementing ID
+    animationIdRef.current++;
+
+    // Cancel any ongoing animation
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
     // Remove route layer and source
     if (map.current.getLayer('route')) {
       map.current.removeLayer('route');
@@ -119,34 +130,47 @@ const RoadMap = ({
     }
   };
 
-  // Animate line drawing
+  // Animate line drawing with requestAnimationFrame for 60fps
   const animateLine = (geojson) => {
     const coordinates = geojson.geometry.coordinates;
-    const steps = 50;
-    const segmentLength = Math.ceil(coordinates.length / steps);
-    let step = 0;
+    const animationDuration = 2000; // 2 seconds total animation
+    const startTime = performance.now();
+    const currentAnimationId = ++animationIdRef.current;
 
-    const animate = () => {
-      if (step >= steps || !map.current) return;
-
-      const currentCoords = coordinates.slice(0, (step + 1) * segmentLength);
-
-      // Update source data with current coordinates
-      if (map.current.getSource('route')) {
-        map.current.getSource('route').setData({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: currentCoords
-          }
-        });
+    const animate = (currentTime) => {
+      // Check if this animation was superseded by a newer one
+      if (currentAnimationId !== animationIdRef.current) {
+        return; // Exit early - this animation is no longer current
       }
 
-      step++;
-      setTimeout(animate, 50); // 50ms per step = ~2.5s total animation
+      if (!map.current || !map.current.getSource('route')) return;
+
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / animationDuration, 1);
+
+      // Calculate how many coordinates to show based on progress
+      const coordCount = Math.floor(coordinates.length * progress);
+      const currentCoords = coordinates.slice(0, Math.max(coordCount, 2));
+
+      // Update source data with current coordinates
+      map.current.getSource('route').setData({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: currentCoords
+        }
+      });
+
+      // Continue animation if not complete
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        animationFrameRef.current = null;
+      }
     };
 
-    animate();
+    // Start animation
+    animationFrameRef.current = requestAnimationFrame(animate);
   };
 
   // Initialize map once
