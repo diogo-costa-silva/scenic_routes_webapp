@@ -50,11 +50,18 @@ const RoadDetails = ({ selectedRoad, onClose }) => {
           ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}
         `}
         onClick={handleClose}
-        aria-hidden="true"
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            handleClose();
+          }
+        }}
+        role="button"
+        tabIndex={isExpanded ? 0 : -1}
+        aria-label="Close details panel"
       />
 
       {/* Details Panel */}
-      <div
+      <aside
         className={`
           fixed bg-white shadow-2xl z-50
           flex flex-col
@@ -71,6 +78,9 @@ const RoadDetails = ({ selectedRoad, onClose }) => {
             : 'h-[80px]'
           }
         `}
+        role="complementary"
+        aria-label="Road details"
+        aria-expanded={isExpanded}
       >
         {/* Header - Always visible */}
         <div
@@ -101,15 +111,15 @@ const RoadDetails = ({ selectedRoad, onClose }) => {
                 handleClose();
               }}
               className="
-                flex-shrink-0 w-8 h-8 rounded-full
+                flex-shrink-0 min-w-[44px] min-h-[44px] rounded-full
                 flex items-center justify-center
                 text-gray-500 hover:text-danger hover:bg-red-50
                 transition-colors duration-200
               "
-              aria-label="Close details panel"
+              aria-label={`Close ${selectedRoad.code} details`}
               title="Close"
             >
-              <span className="text-xl leading-none">×</span>
+              <span className="text-xl leading-none" aria-hidden="true">×</span>
             </button>
           </div>
 
@@ -141,7 +151,7 @@ const RoadDetails = ({ selectedRoad, onClose }) => {
         >
           <ActionButtons road={selectedRoad} />
         </div>
-      </div>
+      </aside>
     </>
   );
 };

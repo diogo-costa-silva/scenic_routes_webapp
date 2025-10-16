@@ -36,9 +36,10 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
       {/* Mobile hamburger button */}
       <button
         onClick={toggleSidebar}
-        className="fixed top-24 left-4 z-50 md:hidden bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors"
-        aria-label="Toggle sidebar"
+        className="fixed top-24 left-4 z-50 md:hidden bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+        aria-label={isOpen ? 'Close road navigation menu' : 'Open road navigation menu'}
         aria-expanded={isOpen}
+        aria-controls="road-navigation"
       >
         <svg
           className="w-6 h-6 text-gray-700"
@@ -48,6 +49,7 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
           strokeWidth="2"
           viewBox="0 0 24 24"
           stroke="currentColor"
+          aria-hidden="true"
         >
           {isOpen ? (
             <path d="M6 18L18 6M6 6l12 12" />
@@ -62,12 +64,20 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
           onClick={toggleSidebar}
-          aria-hidden="true"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              toggleSidebar();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Close sidebar"
         />
       )}
 
       {/* Sidebar panel */}
-      <aside
+      <nav
+        id="road-navigation"
         className={`
           fixed md:relative
           top-0 left-0
@@ -81,6 +91,9 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
           flex flex-col
           ${className}
         `}
+        role="navigation"
+        aria-label="Road navigation"
+        aria-hidden={!isOpen && 'md:hidden'}
       >
         {/* Sidebar header */}
         <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-gray-50">
@@ -136,7 +149,7 @@ const Sidebar = ({ selectedRoadId = null, onRoadSelect, className = '' }) => {
             searchQuery={debouncedSearchQuery}
           />
         </div>
-      </aside>
+      </nav>
     </>
   );
 };

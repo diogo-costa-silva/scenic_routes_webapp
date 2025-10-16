@@ -83,24 +83,27 @@ const RoadListItem = ({ road, isSelected = false, onClick }) => {
       </div>
 
       {/* Badges */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap" role="list" aria-label="Road metrics">
         {/* Curve count badge */}
         {road.curve_count_total !== null && road.curve_count_total !== undefined && (
-          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
-            🌀 {road.curve_count_total} curves
+          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium" role="listitem">
+            <span aria-hidden="true">🌀 </span>
+            <span>{road.curve_count_total} curves</span>
           </span>
         )}
 
         {/* Max elevation badge */}
         {road.elevation_max !== null && road.elevation_max !== undefined && (
-          <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium">
-            ⛰️ {road.elevation_max}m
+          <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium" role="listitem">
+            <span aria-hidden="true">⛰️ </span>
+            <span>{road.elevation_max}m elevation</span>
           </span>
         )}
 
         {/* Region badge (small) */}
         <span
           className={`inline-flex items-center px-2 py-1 rounded-md text-white text-xs font-medium ${regionColorClass}`}
+          role="listitem"
         >
           {road.region}
         </span>
