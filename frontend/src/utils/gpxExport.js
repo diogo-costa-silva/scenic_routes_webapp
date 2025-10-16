@@ -216,7 +216,7 @@ ${coordinates.map((coord, index) => {
     const blob = new Blob([gpxXML], { type: 'application/gpx+xml' });
 
     // Generate safe filename (replace slashes and special chars)
-    const filename = `${road.code.replace(/[\/\\:*?"<>|]/g, '-')}.gpx`;
+    const filename = `${road.code.replace(/[/\\:*?"<>|]/g, '-')}.gpx`;
 
     return {
       success: true,

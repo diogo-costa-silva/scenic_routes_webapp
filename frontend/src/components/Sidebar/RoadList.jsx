@@ -22,7 +22,6 @@ import ErrorMessage from '../UI/ErrorMessage';
  */
 const RoadList = ({ selectedRoadId = null, onRoadSelect, filterRegion = null, searchQuery = '' }) => {
   const {
-    filteredRoads,
     loading,
     error,
     refetch,

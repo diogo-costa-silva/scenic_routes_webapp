@@ -105,7 +105,8 @@ export const testSupabaseConnection = async () => {
     } else {
       console.warn('⚠️  No geometry data to test conversion');
     }
-  } catch (error) {
+  } catch {
+    // Test skipped if no data available
     console.warn('⚠️  Geometry conversion test skipped (no data)');
   }
 
@@ -159,7 +160,7 @@ export const testSupabaseConnection = async () => {
  */
 export const quickConnectionCheck = async () => {
   try {
-    const { data, error } = await supabase.from('roads').select('count', { count: 'exact', head: true });
+    const { error } = await supabase.from('roads').select('count', { count: 'exact', head: true });
 
     if (error) {
       console.error('❌ Connection check failed:', error.message);
