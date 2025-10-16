@@ -39,6 +39,7 @@ from geopy.distance import geodesic
 # Import our modules
 from osm_utils import get_road_from_osm
 from mapbox_matching import batch_map_matching, validate_coordinates_for_matching
+from mapbox_directions import get_road_geometry_with_auto_waypoints
 from validation import (
     validate_geometry_density,
     validate_all_points_in_portugal,
@@ -115,6 +116,17 @@ def _check_cache(road_ref: str) -> Optional[GeometryResult]:
         # Load cache data
         with open(cache_file, 'r') as f:
             cache_data = json.load(f)
+
+        # FIX: Handle both legacy (list) and new (dict) cache formats
+        if isinstance(cache_data, list):
+            # Legacy format from osm_utils.py - just a list of coordinates
+            # Cannot validate age, but assume it's valid OSM data
+            print(f"   ⚠️  Found legacy cache format (no metadata) - treating as expired")
+            return None  # Force re-fetch to get proper metadata
+
+        elif not isinstance(cache_data, dict):
+            print(f"   ⚠️  Invalid cache format (type: {type(cache_data)}), re-fetching...")
+            return None
 
         # Check age
         cached_at_str = cache_data.get('cached_at')
@@ -226,18 +238,24 @@ def get_road_geometry_hybrid(
     road_ref: str,
     bbox: Tuple[float, float, float, float],
     expected_distance_km: float,
-    mapbox_token: Optional[str] = None
+    mapbox_token: Optional[str] = None,
+    start_town: Optional[str] = None,
+    end_town: Optional[str] = None,
+    intermediate_towns: Optional[List[str]] = None
 ) -> Optional[GeometryResult]:
     """
-    Get road geometry using hybrid strategy.
+    Get road geometry using 4-layer hybrid strategy.
 
     Decision Flow:
     1. Check cache (30-day) → Return if hit
     2. Try OSM Overpass query (FREE)
     3. Validate quality (density ≥2.0, bounds, distance)
        ├─ GOOD → Use OSM (cache + return)
-       └─ POOR → Try Map Matching (if token provided)
+       └─ POOR → Try Map Matching (Layer 3)
     4. Validate Map Matching quality
+       ├─ GOOD → Cache + return
+       └─ POOR → Try Directions API (Layer 4) if town names provided
+    5. Validate Directions API quality
        ├─ GOOD → Cache + return
        └─ POOR → Reject (return None)
 
@@ -245,7 +263,10 @@ def get_road_geometry_hybrid(
         road_ref: Road reference (e.g., "N 222")
         bbox: Bounding box (south, west, north, east)
         expected_distance_km: Expected road distance for validation
-        mapbox_token: Mapbox API token (optional, for Map Matching fallback)
+        mapbox_token: Mapbox API token (optional, for Map Matching/Directions fallback)
+        start_town: Starting town name (optional, for Layer 4 Directions API)
+        end_town: Ending town name (optional, for Layer 4 Directions API)
+        intermediate_towns: Intermediate town names (optional, for Layer 4 Directions API)
 
     Returns:
         GeometryResult with coordinates and quality metrics, or None if failed
@@ -255,7 +276,9 @@ def get_road_geometry_hybrid(
         ...     road_ref="N 222",
         ...     bbox=(40.9, -7.9, 41.2, -7.5),
         ...     expected_distance_km=27.0,
-        ...     mapbox_token="pk.xxx"
+        ...     mapbox_token="pk.xxx",
+        ...     start_town="Peso da Régua",
+        ...     end_town="Pinhão"
         ... )
         >>> if result:
         ...     print(f"Source: {result.source}, Density: {result.density:.2f}")
@@ -313,6 +336,66 @@ def get_road_geometry_hybrid(
     if not distance_valid:
         print(f"⚠️  Warning: Distance mismatch {distance_diff_pct*100:.1f}% "
               f"(tolerance: {DISTANCE_TOLERANCE*100:.0f}%)")
+
+        # CRITICAL: If distance is way off (>20% error), OSM data is incomplete/wrong
+        # Don't waste time trying Map Matching - go straight to alternative strategies
+        if distance_diff_pct > 0.50:  # >50% error = completely wrong data
+            print(f"\n❌ OSM data severely incomplete ({distance_diff_pct*100:.1f}% error)")
+            print(f"   Got {distance_km:.2f}km but expected {expected_distance_km:.2f}km")
+            print(f"   Skipping Map Matching (won't help with incomplete data)")
+
+            # Try Layer 4 (Directions with waypoints) if towns provided
+            if start_town and end_town and mapbox_token:
+                print(f"\n🔄 Jumping to Layer 4: Directions API with auto-waypoints...")
+
+                directions_coords = get_road_geometry_with_auto_waypoints(
+                    road_code=road_info['code'],
+                    start_town=start_town,
+                    end_town=end_town,
+                    expected_distance_km=expected_distance_km,
+                    mapbox_token=mapbox_token,
+                    intermediate_towns=intermediate_towns
+                )
+
+                if directions_coords and len(directions_coords) >= 2:
+                    # Validate Layer 4 result
+                    directions_distance_km = _calculate_distance(directions_coords)
+                    directions_quality_report = get_quality_report(
+                        road_info, directions_coords, directions_distance_km
+                    )
+
+                    print(f"\n📊 Directions API Quality:")
+                    print_quality_report(directions_quality_report)
+
+                    directions_density = directions_quality_report['density']
+                    directions_geo_valid = directions_quality_report['geo_valid']
+                    directions_density_valid = directions_quality_report['density_valid']
+                    directions_distance_diff_pct = abs(directions_distance_km - expected_distance_km) / expected_distance_km
+                    directions_distance_valid = directions_distance_diff_pct <= DISTANCE_TOLERANCE
+
+                    if directions_density_valid and directions_geo_valid and directions_distance_valid and len(directions_coords) >= MIN_POINTS:
+                        print(f"\n✅ Layer 4 SUCCESS - using Directions geometry")
+                        print(f"   Source: mapbox_directions")
+                        print(f"   Distance: {directions_distance_km:.2f}km (error: {directions_distance_diff_pct*100:.1f}%)")
+
+                        result = GeometryResult(
+                            coordinates=directions_coords,
+                            source='mapbox_directions',
+                            quality_report=directions_quality_report,
+                            point_count=len(directions_coords),
+                            density=directions_density,
+                            distance_km=directions_distance_km,
+                            cached=False
+                        )
+
+                        _save_cache(road_ref, result)
+                        return result
+                    else:
+                        print(f"\n❌ Layer 4 also failed quality validation")
+
+            # All options exhausted
+            print(f"\n❌ REJECTED: OSM data incomplete, no alternative strategy available")
+            return None
 
     # STEP 4a: If OSM quality is GOOD, use it
     if density_valid and geo_valid and distance_valid and len(osm_coords) >= MIN_POINTS:
@@ -421,7 +504,7 @@ def get_road_geometry_hybrid(
         return result
 
     else:
-        print(f"\n❌ Map Matching quality still POOR - rejecting road")
+        print(f"\n⚠️  Map Matching quality still POOR:")
         if not matched_density_valid:
             print(f"   • Density {matched_density:.2f} < {MIN_DENSITY} pts/km")
         if not matched_geo_valid:
@@ -430,6 +513,80 @@ def get_road_geometry_hybrid(
             print(f"   • Distance {matched_distance_km:.2f}km differs {matched_distance_diff_pct*100:.1f}% from expected {expected_distance_km}km")
         if len(matched_coords) < MIN_POINTS:
             print(f"   • Only {len(matched_coords)} points (minimum: {MIN_POINTS})")
+
+        # STEP 5: Layer 4 - Try Directions API with auto-waypoints (last resort)
+        if start_town and end_town:
+            print(f"\n🔄 Trying Layer 4: Directions API with auto-waypoints...")
+
+            directions_coords = get_road_geometry_with_auto_waypoints(
+                road_code=road_info['code'],
+                start_town=start_town,
+                end_town=end_town,
+                expected_distance_km=expected_distance_km,
+                mapbox_token=mapbox_token,
+                intermediate_towns=intermediate_towns
+            )
+
+            if directions_coords and len(directions_coords) >= 2:
+                # Calculate distance and validate
+                directions_distance_km = _calculate_distance(directions_coords)
+                directions_quality_report = get_quality_report(
+                    road_info, directions_coords, directions_distance_km
+                )
+
+                print(f"\n📊 Directions API Quality:")
+                print_quality_report(directions_quality_report)
+
+                directions_density = directions_quality_report['density']
+                directions_geo_valid = directions_quality_report['geo_valid']
+                directions_density_valid = directions_quality_report['density_valid']
+
+                # Distance validation
+                directions_distance_diff_pct = abs(directions_distance_km - expected_distance_km) / expected_distance_km
+                directions_distance_valid = directions_distance_diff_pct <= DISTANCE_TOLERANCE
+
+                if not directions_distance_valid:
+                    print(f"⚠️  Warning: Directions distance {directions_distance_km:.2f}km differs "
+                          f"{directions_distance_diff_pct*100:.1f}% from expected {expected_distance_km}km")
+
+                # Check if Directions API provides acceptable quality
+                if directions_density_valid and directions_geo_valid and directions_distance_valid and len(directions_coords) >= MIN_POINTS:
+                    print(f"\n✅ Directions API quality GOOD - using auto-waypoints geometry")
+                    print(f"   Source: mapbox_directions")
+                    print(f"   Density: {directions_density:.2f} pts/km")
+                    print(f"   Quality: {directions_quality_report['quality']}")
+
+                    result = GeometryResult(
+                        coordinates=directions_coords,
+                        source='mapbox_directions',
+                        quality_report=directions_quality_report,
+                        point_count=len(directions_coords),
+                        density=directions_density,
+                        distance_km=directions_distance_km,
+                        cached=False
+                    )
+
+                    # Cache the result
+                    _save_cache(road_ref, result)
+
+                    return result
+                else:
+                    print(f"\n❌ Directions API quality also POOR:")
+                    if not directions_density_valid:
+                        print(f"   • Density {directions_density:.2f} < {MIN_DENSITY} pts/km")
+                    if not directions_geo_valid:
+                        print(f"   • Some points outside Portugal bounds")
+                    if not directions_distance_valid:
+                        print(f"   • Distance {directions_distance_km:.2f}km differs {directions_distance_diff_pct*100:.1f}% from expected {expected_distance_km}km")
+                    if len(directions_coords) < MIN_POINTS:
+                        print(f"   • Only {len(directions_coords)} points (minimum: {MIN_POINTS})")
+            else:
+                print(f"   ❌ Directions API failed to return coordinates")
+        else:
+            print(f"\n⏭️  Skipping Layer 4: No town names provided")
+
+        # All layers failed
+        print(f"\n❌ ALL LAYERS FAILED - rejecting road")
         print(f"   Better NO road than BAD road")
         return None
 
